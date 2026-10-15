@@ -1,0 +1,24 @@
+{
+  "name": "obs-conductor",
+  "version": "2.1.2",
+  "private": true,
+  "description": "OBS Conductor - playlist dock for OBS Studio, with master / slave mode (Windows, macOS, Linux)",
+  "license": "GPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/noar-justedit/obs-conductor.git"
+  },
+  "homepage": "https://github.com/noar-justedit/obs-conductor",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "node src/main.js",
+    "simulate": "node src/main.js --simulate",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "yaml": "^2.6.0"
+  }
+}

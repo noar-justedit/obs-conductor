@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OBS Conductor</title>
+<!--
+  What OBS opens in the "OBS Conductor" dock (a local file, set by the app
+  the first time it runs, obs-setup.js). The real dock is served by the app at http://localhost:PORT/:
+  as soon as the app answers, this page hands over to it. When the app is not
+  running, it says so instead of OBS's error page, and keeps checking.
+  (A web page can't start a program: starting is done from the Start menu,
+  the Applications folder or the applications menu, or at logon.)
+-->
+<style>
+html,body{margin:0;height:100%;background:#0a0b0e;color:#e8eaf0;font:12px/1.5 -apple-system,'Segoe UI',system-ui,sans-serif}
+.box{padding:16px}
+.logo{font-weight:700;font-size:16px;letter-spacing:.02em}
+.logo span{color:#ff5ca8}
+.card{margin-top:14px;background:#14161c;border-radius:14px;padding:14px}
+.t{color:#f2a03d;font-weight:700;font-size:13px}
+p{margin:8px 0 0;color:#aeb3bd}
+b{color:#e8eaf0}
+.foot{margin-top:12px;display:flex;align-items:center;gap:8px;color:#8b909b;font-size:11px}
+.spin{width:12px;height:12px;border-radius:50%;border:2px solid #6f757f;border-top-color:#4d90f0;animation:s 1s linear infinite}
+@keyframes s{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="logo">obs<span>.</span>conductor</div>
+  <div class="card" id="card" style="display:none">
+    <div class="t">OBS Conductor is not running</div>
+    <p>Start it: <b id="where">Start menu &rsaquo; OBS Conductor</b>.</p>
+    <div class="foot"><span class="spin"></span>Waiting...</div>
+  </div>
+</div>
+<script>
+const port = parseInt(new URLSearchParams(location.search).get('port'), 10) || 8090;
+const base = 'http://localhost:' + port;
+// where to start the app from, worded for this system
+const pf = navigator.platform || '';
+document.getElementById('where').innerHTML = /Mac/i.test(pf) ? 'Applications &rsaquo; OBS Conductor'
+  : /Win/i.test(pf) ? 'Start menu &rsaquo; OBS Conductor' : 'the applications menu &rsaquo; OBS Conductor';
+let tries = 0;
+async function check(){
+  try {
+    // no-cors: the answer can't be read from this file page, but it only
+    // succeeds when the app is listening
+    await fetch(base + '/api/whoami', {mode: 'no-cors', cache: 'no-store'});
+    location.replace(base + '/');
+    return;
+  } catch(e) {}
+  if (++tries >= 2) document.getElementById('card').style.display = '';
+  setTimeout(check, 2000);
+}
+check();
+</script>
+</body>
+</html>

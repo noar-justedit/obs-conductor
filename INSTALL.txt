@@ -1,0 +1,153 @@
+OBS CONDUCTOR - INSTALLATION (Windows, macOS, Linux)
+===================================================
+
+Deux étapes : fabriquer les installeurs (une fois par version), puis
+installer sur chaque machine. Mode d'emploi du dock : GUIDE.txt.
+Les installeurs publiés sont aussi sur
+github.com/noar-justedit/obs-conductor/releases
+
+
+1. FABRIQUER LES INSTALLEURS
+----------------------------
+   Rien à installer avant : chaque script télécharge lui-même Node.js
+   (vérifié avec les empreintes de nodejs.org), lance les tests, puis
+   fabrique dans le dossier dist/.
+
+   Sur le Mac
+      build_mac.command      -> OBSConductor-X.Y.Z-mac.dmg
+                                (Apple Silicon + Intel, macOS 11 et plus,
+                                signé et notarisé)
+         Il faut les outils de ligne de commande de Xcode :
+         xcode-select --install
+         Signature : le certificat « Developer ID Application » du
+         trousseau est trouvé tout seul. Le nom du profil notarytool est
+         demandé la première fois, puis gardé dans scripts/signing.local
+         (reste sur le Mac, jamais envoyé sur GitHub).
+      build_windows.command  -> OBSConductor-Setup-X.Y.Z.exe
+         Il faut NSIS (le fabricant d'installeur) : le script propose de
+         l'installer avec Homebrew (brew install makensis).
+
+   Sur le PC Linux (64 bits)
+      ./build_linux.sh       -> obs-conductor_X.Y.Z_amd64.deb
+                                OBSConductor-X.Y.Z-x86_64.AppImage
+
+
+2. INSTALLER (sur chaque machine, maître ou esclave)
+----------------------------------------------------
+   Windows
+      Double-cliquer OBSConductor-Setup-X.Y.Z.exe.
+      Windows peut afficher « Windows a protégé votre ordinateur » :
+      « Informations complémentaires » puis « Exécuter quand même »
+      (l'installeur n'est pas signé).
+      Laisser les 2 cases cochées : lancer OBS Conductor au démarrage de
+      Windows, autoriser les autres PC du réseau (maître / esclave).
+      L'icône de l'appli est près de l'horloge (parfois sous la flèche ^).
+
+   macOS
+      Ouvrir le .dmg, glisser OBS Conductor dans Applications, l'ouvrir.
+      L'appli n'a ni fenêtre ni icône dans le Dock : elle tourne en
+      arrière-plan, son interface est le dock dans OBS.
+      Si macOS demande d'accepter les connexions entrantes : Autoriser
+      (indispensable pour maître / esclave).
+      Lancement à l'ouverture de session : Réglages Système > Général >
+      Ouverture > « + » > OBS Conductor.
+
+   Linux
+      .deb      sudo apt install ./obs-conductor_X.Y.Z_amd64.deb
+                puis « OBS Conductor » dans le menu des applications.
+      AppImage  chmod +x OBSConductor-X.Y.Z-x86_64.AppImage, puis le lancer.
+      Lancement à l'ouverture de session : ajouter OBS Conductor dans les
+      applications au démarrage du bureau.
+      OBS installé depuis Flathub est pris en charge.
+      Pour les fenêtres Enregistrer / Ouvrir / Choisir un dossier : zenity
+      (déjà là sur Pop!_OS, Ubuntu). Sans zenity, le dock fait taper le
+      chemin.
+
+   Puis, partout :
+   1. Fermer OBS une fois pendant que l'appli tourne : la première fois,
+      l'appli ajoute le dock « OBS Conductor » dans OBS, active le serveur
+      WebSocket d'OBS et recopie son mot de passe. (OBS réécrit ses
+      réglages en quittant : il doit être fermé.)
+   2. Ouvrir OBS : Docks > OBS Conductor. Le placer comme n'importe quel
+      dock.
+   3. Le dock demande le rôle de la machine :
+      - MASTER : c'est tout. Le mot de passe à donner aux esclaves est dans
+        Settings (roue dentée) > WebSocket server.
+      - SLAVE : le dock cherche le master sur le réseau. Cliquer dessus,
+        taper son mot de passe, Connect. Puis SYNC pour reprendre médias,
+        réglages OBS et scènes du master.
+      Si le serveur WebSocket d'OBS est désactivé, un bandeau orange donne
+      les 3 clics à faire dans OBS.
+
+   Si OBS n'a jamais été ouvert sur ce compte : ouvrir OBS une fois, le
+   fermer ; l'appli ajoute le dock dans la minute.
+
+   Mise à jour : installer la nouvelle version par-dessus. Playlists et
+   réglages sont conservés (aussi en cas de désinstallation).
+   Windows : il suffit de mettre à jour le master, chaque slave Windows
+   affiche « Update to vX » et s'installe depuis le master (Windows demande
+   l'accord administrateur sur le slave). Mac et Linux : le dock signale
+   la nouvelle version, l'installer à la main.
+   Passage de la 1.x à la 2.0 sous Windows : le nouvel installeur reprend
+   l'installation existante (même dossier) ; l'ancienne entrée de
+   désinstallation est remplacée.
+
+
+3. LANCER, ARRÊTER, REMETTRE LE DOCK
+------------------------------------
+   Windows : menu Démarrer > OBS Conductor
+      OBS Conductor                     lance l'appli (si elle ne tourne pas)
+      Stop OBS Conductor                l'arrête (ou clic droit sur l'icône >
+                                        Quit OBS Conductor)
+      Add the dock to OBS               remet le dock dans OBS (OBS fermé)
+      OBS Conductor log                 ouvre le journal de l'appli
+      OBS Conductor (simulation...)     faux OBS, pour essayer sans OBS
+                                        (arrêter d'abord l'appli normale)
+      Uninstall OBS Conductor           retire l'appli, le dock d'OBS, le
+                                        lancement au démarrage et le pare-feu
+   macOS : lancer depuis Applications. Arrêter : icône OBS Conductor dans la
+      barre de menus (en haut à droite) > Quit OBS Conductor, ou dans le
+      dock, Settings > Quit OBS Conductor. Commandes (Terminal) :
+      "/Applications/OBS Conductor.app/Contents/MacOS/OBSConductor" --stop
+      ... --add-dock (OBS fermé)   ... --simulate
+   Linux : menu des applications > OBS Conductor ; clic droit sur l'icône
+      pour Stop / Add the dock to OBS / simulation. En ligne de commande :
+      obs-conductor --stop | --add-dock | --simulate
+
+
+4. SI ÇA NE MARCHE PAS
+----------------------
+   Le dock dit « OBS Conductor is not running »
+      Lancer l'appli (voir 3) : le dock revient tout seul.
+   Le dock n'apparaît pas dans OBS
+      Fermer OBS une fois pendant que l'appli tourne. Sinon, OBS fermé :
+      « Add the dock to OBS » (voir 3).
+      À la main : Docks > Custom Browser Docks, nom OBS Conductor,
+      URL http://localhost:8090/
+   Le point OBS du dock est rouge
+      Dans OBS : Outils > Paramètres du serveur WebSocket > « Activer le
+      serveur WebSocket » doit être coché. Le mot de passe est relu tout
+      seul dans OBS.
+   L'esclave ne trouve pas ou ne joint pas le maître
+      - Sur le maître : OBS ouvert, serveur WebSocket activé.
+      - Windows : le réseau doit être « privé » (Paramètres > Réseau et
+        Internet > propriétés du réseau) : le pare-feu n'est ouvert que pour
+        les réseaux privés.
+      - macOS : Réglages Système > Réseau > Coupe-feu : OBS Conductor et
+        OBS doivent accepter les connexions entrantes.
+      - Les machines doivent être sur le même réseau (192.168.1.x par
+        exemple). Sinon : « Type its address » et taper l'IP du maître.
+   Pour comprendre ce qui se passe : le journal de l'appli
+      Windows  %LOCALAPPDATA%\OBSConductor\logs\OBSConductor.log
+      macOS    ~/Library/Application Support/OBSConductor/logs/OBSConductor.log
+      Linux    ~/.config/obs-conductor/logs/OBSConductor.log
+      (ajout du dock dans OBS : install.log, au même endroit)
+
+
+POUR LE DÉVELOPPEMENT
+---------------------
+   npm install              une fois (Node.js 22 ou plus)
+   npm start                lance depuis les sources
+   npm run simulate         avec un faux OBS
+   npm test                 tests automatiques
+   run_dev.bat              (Windows) idem npm start

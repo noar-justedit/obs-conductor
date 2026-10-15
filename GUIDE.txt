@@ -1,0 +1,286 @@
+OBS CONDUCTOR - USER GUIDE
+=========================
+
+Everything the dock does. Installing: see INSTALL.txt.
+
+Colours: green = works, connected, on, running. Red = doesn't work,
+disconnected, off, error (and the stop / remove buttons). Orange = you
+need to act, warning. Blue = information.
+
+-----------------------------------------------------------------
+
+FIRST LAUNCH
+
+The dock asks whether this PC is the MASTER (plays its own playlists) or a
+SLAVE (follows a master). The MASTER / SLAVE buttons at the top change it
+later (with a confirmation).
+
+If OBS's WebSocket server is off, an orange banner gives the 3 steps in
+OBS (Tools > WebSocket Server Settings > Enable WebSocket server > OK).
+OBS Conductor then connects by itself: port and password are read from
+OBS's own settings, nothing to type. Needed on the master AND the slaves
+(the app drives each PC's OBS through it).
+
+-----------------------------------------------------------------
+
+THE DOCK
+
+Header: logo, OBS dot (hover for details), MASTER / SLAVE buttons (the
+role of this PC in green), then on the right Home (house icon: on air and
+playlist) and Settings (gear).
+
+Bottom of the on-air card: on a master, the transport buttons, then the
+padlock (a little apart). On a slave, one row: the MASTER switch, AUTO SYNC,
+SYNC, then the padlock.
+   STATUS badge (top of the slave's on-air card, hover for details):
+     FOLLOWING MASTER (green): this PC follows its master.
+     FREE RUN (orange): the MASTER switch is off.
+     DISCONNECTED (red): the MASTER switch is on but the master's OBS is
+     not reached (the red line under the card says why).
+   MASTER switch: on = connected to the master and following it; off =
+   free run: this PC disconnects from its master, its OBS keeps the scene
+   it is on and nothing from the master (scenes, transitions, media, OBS
+   settings, playback) reaches it. SYNC is off in free run.
+
+Padlock = lock mode (red when on): nothing can be changed, played or
+stopped - from this dock or any other. Click it again to unlock. Playback
+goes on while locked.
+
+Playlist tab (master)
+   Top of the on-air card: in the middle the tally (see TALLY); on the
+   right the state badge: RUNNING (green) while the playlist plays, IDLE
+   (grey) otherwise, and under it a grey badge with the playlist's time
+   left / total length and its number of cues (stopped: total and number
+   of enabled cues). On a slave the state badge is its STATUS (FOLLOWING
+   MASTER / FREE RUN / DISCONNECTED) and the tally sits on its own line
+   above.
+   On air card     scene on air and its countdown, progress bar, next cue.
+                   Buttons:
+                     play (green)   from the first enabled cue
+                     loop           blue = on: after the last cue, start again
+                     stop (red)     OBS stays on the current scene
+                     end action     arrow into a window: what happens at the end
+                                    when loop is off - stay on the last cue, or
+                                    go to a scene (blue when a scene is set)
+   Toolbar         playlist list and the "..." menu: new, duplicate, rename,
+                   delete, Save (into its file, no question; the first time
+                   it asks where), Save to... (another file), Load...
+   The cue on air can't be changed (scene, duration, video, transition,
+   ACTIVE / SKIPPED, move, remove); "play from here" still works.
+   Two lines per scene (the name is never cut):
+      line 1   dotted handle (drag to reorder), number, scene name (click
+               it to pick another OBS scene), and on the right a small tag:
+               ACTIVE (green) = plays, SKIPPED (red) = jumped over.
+               Click the tag to switch.
+               A cue switched off is skipped, also live (1, [2 off], 3 plays
+               1 then 3) and doesn't count in the total.
+      line 2   play from this cue, duration in seconds:
+                 grey   = the default scene duration (Settings); changing
+                          the default changes all these cues
+                 white  = chosen for this cue, or taken from a video
+                 Click it: menu with Default, usual durations (5s to 60s),
+                 Custom (type any, decimals allowed, Enter) and Auto-detect:
+                 "Longest video" (the longest one shown that doesn't loop)
+                 or one of the scene's videos with its length.
+               film icon (grey, only when the scene has a video): menu of
+                 the scene's videos with their length - pick the one whose
+                 length is the duration. Adding a scene picks the longest
+                 one that is shown and doesn't loop (a background loop has
+                 no end); none: the default duration. Looping and hidden
+                 videos are listed, marked "loop" / "hidden".
+                 When OBS gives no length (file not loaded, some ProRes
+                 .mov), it is read in the file itself (.mov / .mp4 only).
+               transition: two badges, its name (FADE, CUT, ...) and its
+                 length (0.5s; none for Cut / Stinger). Click the name:
+                 Default or one of OBS's transitions. Click the length: a
+                 usual length or any other. Grey = the default
+                 transition (Settings), blue = the cue's own.
+               remove (red bin)
+   Last line: scene list + green "+" to add a scene at the end.
+   Edits are saved automatically and apply live, even while playing.
+   An error of the app (red line in the on-air card) goes away by itself at
+   the next scene on air, or with a click on it. The version is at the
+   bottom of the dock.
+
+   Playlist files (.obsplaylist): "Save to a file..." and "Load from a
+   file..." open the system's dialogs (on top of OBS; on Linux they need
+   zenity, otherwise the dock asks for the file / the path). The file is plain
+   text (YAML) - it can be copied to another PC, archived with an event,
+   sent by mail. Loading never overwrites: a playlist with the same name is
+   loaded as "Name 2". Scenes missing in OBS are shown in orange.
+
+Playlist tab (slave)
+   No master yet: "Find the master". The network is scanned by itself
+   (2 to 4 s): every OBS with its WebSocket server on is listed, OBS
+   Playlist masters first. Click the master, type its password (shown on
+   the master: Settings > WebSocket server), Connect. The password is
+   checked before anything is saved. Not in the list (other sub-network,
+   firewall): "Type its address".
+   Linked: the master's playlist, read-only, with its progress and its
+   ACTIVE / SKIPPED badges (changed on the master only).
+   SYNC (bottom of the on-air card, green when it can run, red
+   when it can't): a window asks what to copy, one switch
+   each - Scenes, Media, OBS settings, All (green on, red off; the last
+   choice is kept). In this order:
+     1. media: the master's app sends the files its scenes use (no Windows
+        share). Same path as on the master; a master drive that doesn't
+        exist here: the dock asks which folder to use, and the paths of the
+        OBS sources are converted. A file already here with the same size
+        and date is skipped; every copy is checked against the master's
+        fingerprint; a cut copy resumes. The old version of a replaced file,
+        and a file the master no longer uses, go to "<folder> (archive)",
+        dated: nothing is deleted. A file OBS is playing here can't be
+        replaced: it is at the next Sync. Progress, estimated time left
+        ("~3 min 20s left", after a few seconds), speed and a cancel
+        button show while copying. A file that was already here (copied by
+        hand) is never archived.
+     2. OBS settings: canvas and output resolution, FPS, downscale filter,
+        colour format / space / range, HDR levels, audio sample rate and
+        channels (audio: at the next OBS start, the status says "restart
+        OBS"). Never copied: stream service and key, recording format,
+        path and encoders, audio / video devices, hotkeys. OBS refuses to
+        change its video while it streams, records or runs its virtual
+        camera: the status says so and the next Sync does it.
+     3. scenes: the master's scene collection opens in this PC's OBS as
+        "<name> (from master)" - sources, filters, positions, transitions.
+        Positions and sizes are read live from the master's OBS (OBS
+        doesn't save a move or a resize in its file right away).
+        The output goes blank for a moment; the slave's own collections are
+        kept. Missing files and plugins are listed (hover the status).
+   AUTO SYNC ON / OFF (next to SYNC, click to switch: red off, green on): the
+   slave checks the master every 5 s and syncs
+   by itself as soon as its scenes, media or OBS settings change (switching
+   scenes doesn't count; moving or resizing a source does). OBS here reloads its scenes then: short blank.
+   Several slaves can follow one master; syncing them at the same time
+   shares the master's network.
+   Master lost (its OBS or its app, for 3 s): notification "Master
+   connection lost", the on-air card says MASTER LOST, the slave stops
+   following and, as set in Settings > Fallback:
+     - "Show a fallback scene" on: the scene chosen below ("Choose a
+       scene"), a scene of this PC (none: it stays put);
+     - off: it keeps playing the master's playlist from where the master
+       was, with its own clock, driving its own OBS.
+   Master back for 2 s: it follows again and catches up the master's scene
+   at once. The slave
+   follows the master live: same scene at the same time, same transition,
+   same media actions (play / pause / restart...). A line appears only when
+   the link has a problem.
+   Versions: when the master and this PC differ, a line under Sync says so
+   (the taskbar icon turns orange). Master newer, both on Windows:
+   "Update to vX" downloads the master's installer, checks it and installs
+   it. Windows asks for the administrator's OK on this PC; the app restarts
+   by itself (a few seconds without scene change), OBS stays open, the dock
+   reloads. On macOS / Linux, or a master on another system: "install by
+   hand" (download the version from GitHub's Releases). Master older:
+   update the master. A master installed before 1.3.0 has no copy of its
+   installer: install this PC by hand once.
+
+Settings tab (everything is saved as soon as a field is left)
+   On a master:
+   Default settings  (master only: a slave plays what its master says; if
+                     it loses the master it uses the master's last values)
+                     default transition and its length (two menus, the
+                     same as the playlist badges: usual lengths 0.25s to
+                     3s, or "Other" for any length), default scene
+                     duration - used by every cue that doesn't set its own,
+                     in all playlists; "Restart videos when their scene goes
+                     on air" (leave off if the OBS sources already restart on
+                     activation).
+   WebSocket server  this PC's IP, OBS's WebSocket port and password (what
+                     the slaves connect with), show / copy buttons. The
+                     password is shown only in the dock of the master PC.
+   Tally             see TALLY below.
+   OBS Conductor     version, dock port, reachable from the network (needed
+     server          on a master) or this PC only, this PC's IP address. Port
+                     and network changes apply after restarting the app.
+                     "Quit OBS Conductor" stops the app on this PC (with a
+                     confirmation). The dock then waits for it.
+   On a slave:
+   Master            the master followed, its address, the link state,
+                     "Find another master".
+   Fallback          what this PC does when it loses the master: switch
+                     "Show a fallback scene" (on: the scene chosen in
+                     "Choose a scene"; off: keeps playing the master's
+                     playlist).
+   Medias location   switch "Same as master" on: the media go where the
+                     master has them (a master drive missing here is shown
+                     in orange). Off (custom): each master folder and where
+                     it goes here ("Choose..." to pick a folder; the cross
+                     puts it back to the same path). The folders chosen are
+                     kept when switching back to "Same as master". Changing
+                     it moves the copies already made at the next Sync (no
+                     new download). A folder chosen when a Sync asks for one
+                     switches to custom.
+   Tally, OBS Conductor server: the same as on the master.
+
+-----------------------------------------------------------------
+
+TALLY (PixelHue Q8 / P20 / P80)
+
+A badge centred at the top of the on-air card, semi-transparent and
+breathing: red ON AIR when this PC's OBS is on program on the switcher (and
+the whole panel is framed in red, breathing too), green PVW when it is in
+preview (no frame), nothing otherwise; under it, the name of this OBS's input on the switcher (a long
+name scrolls). Red NO TALLY: the switcher doesn't answer.
+Settings > Tally, on each PC: the switcher's address, then pick the input
+this OBS feeds in the list read from the switcher (refresh button next to
+it). "Test connection" connects to the switcher again and says, in green,
+how long it took to answer and how many inputs and screens it has (red:
+why it failed; reads only).
+If one input is named like this PC (e.g. "OBS HALL 8" on the PC
+HALL8: spaces, dashes and capitals don't count), it is chosen by itself.
+Empty address: no tally. The multiviewer, a disabled screen or a screen
+faded to black don't count as on air. If the tally looks wrong: open
+http://localhost:8090/api/tally/debug in a browser on this PC and send what
+it shows (what the switcher answers; reads only).
+
+-----------------------------------------------------------------
+
+THE ICON (Windows taskbar, macOS menu bar; Linux: no icon, the dock says it all)
+
+Windows: next to the clock (maybe under the ^ arrow). The colour of its play
+triangle: green all good, orange something to look at (WebSocket off in
+OBS, Sync problem, versions differ), red connection lost (OBS here, or the
+master). Pink (the app's colour): master or slave not chosen yet. Hover for the state (role,
+OBS connected, scene on air or master followed). Right-click: state, open the dock in a browser,
+show the log, quit OBS Conductor (asks first). Double-click: open the dock
+in a browser.
+
+macOS: top right of the screen, in the menu bar: the logo with a coloured
+dot after it (same colours: green, orange, red; no dot until master or
+slave is chosen). Click: state, open the dock in a browser, show the log,
+quit OBS Conductor (asks first). No notifications on macOS.
+
+When the app is not running, the dock in OBS says so (Windows: Start menu
+> OBS Conductor; macOS: Applications > OBS Conductor; Linux: the
+applications menu) and opens by itself as soon as it runs. A web page
+can't start a program: starting is done from there or at logon.
+Notifications: app started, WebSocket off in OBS, master lost / back,
+master on another version.
+
+-----------------------------------------------------------------
+
+LIMITS
+   - Video length: when OBS doesn't give it, it is read in the file for
+     .mov / .mp4 only. Other containers (MXF, MKV...) with "Close file when
+     inactive", or a VLC source that never played: set the duration by
+     hand. For a VLC playlist of several files, no length is proposed.
+   - A Transition Override set on a scene in OBS (right-click) wins over the
+     playlist's transition. Playing changes OBS's current transition.
+   - Master/slave alignment depends on the network: a few ms on wired LAN,
+     more on Wi-Fi. Not frame-accurate (no genlock).
+   - The network scan covers this PC's network (a.b.c.1 - 254) on ports
+     4455 (OBS) and 8090 (OBS Conductor). Other sub-networks: type the address.
+   - If OBS is closed or restarts, the app reconnects on its own; the
+     playlist clock keeps running and the scene due is sent when OBS is back.
+   - Changes are made from this PC only (its dock in OBS, or a browser on
+     this PC). The network can only read: the slaves follow the master, a
+     browser on another PC can watch but not change anything.
+   - The Windows tray icon is drawn by Windows PowerShell: on a PC where it
+     is blocked there is no icon, the app works the same. Notifications may
+     show "Windows PowerShell" as their source. Notifications: Windows only.
+   - Master and slaves on different systems (Windows, macOS, Linux): scene
+     switches, transitions and media actions follow as usual. A Sync copies
+     the scene collection as it is: sources that exist on one system only
+     (window / screen capture, audio devices, GDI+ text...) are listed as
+     unknown on the slave. Automatic updates: between Windows PCs only.

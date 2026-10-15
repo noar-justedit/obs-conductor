@@ -1,0 +1,2274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OBS Conductor</title>
+<style>
+/* ── just edit lab charter (same skin as syncto / ingesto) ─────────────────
+   Three surfaces and nothing else: the page, a card on it, a hollow in the
+   card (field, row, tile). No border lines: grouping is carried by the
+   background. Colour only says what something does:
+     green  works, connected, on, running      red   doesn't work, disconnected,
+     off, error (and the stop / remove buttons)  orange  the user must act, warning
+     blue   information
+   The app's own colour lives on the logo and nowhere else. */
+:root{
+  --page:#0a0b0e; --card:#14161c; --ins:#0e1014; --raise:#1b1d24;
+  --text:#e8eaf0; --text2:#aeb3bd; --text3:#8b909b; --text4:#6f757f;
+  --green:#35c98b; --red:#f2555a; --blue:#4d90f0; --orange:#f2a03d;
+  --app:#ff5ca8;                       /* OBS Conductor's colour: the logo only */
+  --r-card:14px; --r-ins:11px; --r-field:8px; --r-badge:4px;
+  --focus:inset 0 0 0 1px rgba(255,255,255,.18);
+  --font:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',system-ui,sans-serif;
+  --mono:ui-monospace,'SF Mono','JetBrains Mono',Consolas,monospace;
+}
+@font-face{font-family:'Poppins';src:url('/fonts/Poppins-Bold.ttf') format('truetype');font-weight:700;font-display:swap;}
+@font-face{font-family:'Oswald';src:url('/fonts/Oswald.ttf') format('truetype');font-weight:200 700;font-display:swap;}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--page);color:var(--text);font:12px/1.4 var(--font)}
+body{padding-bottom:10px}
+button,input,select{font:inherit;color:inherit}
+::-webkit-scrollbar{width:8px} ::-webkit-scrollbar-thumb{background:#2a2d36;border-radius:8px}
+
+button{background:var(--ins);border:none;border-radius:9px;color:var(--text2);padding:6px 10px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font-weight:600}
+button:hover:not(:disabled){color:var(--text)}
+button:disabled{opacity:.35;cursor:default}
+button.primary{background:#0f2c1d;color:var(--green)}
+button.primary:hover:not(:disabled){background:#12351f;color:var(--green)}
+button.stop,button.danger{background:rgba(242,85,90,.14);color:var(--red)}
+button.stop:hover:not(:disabled),button.danger:hover:not(:disabled){background:rgba(242,85,90,.24);color:var(--red)}
+button.info{background:#0f1d33;color:var(--blue)}
+button.icon{padding:0;width:28px;height:28px;justify-content:center;border-radius:8px}
+button.ghost{background:transparent;color:var(--text3)}
+button.ghost:hover:not(:disabled){background:var(--ins);color:var(--text)}
+button.ghost.danger{background:transparent;color:var(--text3)}
+button.ghost.danger:hover:not(:disabled){background:rgba(242,85,90,.14);color:var(--red)}
+input,select{background:var(--ins);border:none;border-radius:var(--r-field);padding:6px 8px;min-width:0;color:var(--text)}
+input::placeholder{color:var(--text4)}
+input:focus,select:focus{outline:none;box-shadow:var(--focus)}
+select option{background:var(--card)}
+input[type=number]{width:72px;text-align:right;font-variant-numeric:tabular-nums}
+svg{width:14px;height:14px;flex-shrink:0}
+.hidden{display:none!important}
+.row{display:flex;align-items:center;gap:6px}
+.grow{flex:1;min-width:0}
+.dim{color:var(--text2)} .faint{color:var(--text3)}
+.small{font-size:11px}
+.mono{font-variant-numeric:tabular-nums}
+
+/* header: logo, status, tabs - on the page, no line under it */
+header{position:sticky;top:0;z-index:5;background:var(--page);padding:8px 8px 6px 10px;display:flex;align-items:center;gap:4px}
+.logo{font-family:'Poppins',var(--font);font-weight:700;font-size:14px;letter-spacing:.02em;text-transform:lowercase;
+  color:var(--text);white-space:nowrap;line-height:1.2;min-width:0;overflow:hidden;text-overflow:ellipsis;flex-shrink:1}
+.logo span{color:var(--app)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--text4);flex-shrink:0}
+.dot.ok{background:var(--green)} .dot.bad{background:var(--red)} .dot.warn{background:var(--orange)}
+.badge{font-size:9px;font-weight:700;letter-spacing:.1em;padding:3px 6px;border-radius:var(--r-badge);
+  background:var(--card);color:var(--text3)}
+#obsTxt{font-size:9px;font-weight:700;letter-spacing:.1em;color:var(--text3)}
+.tabs{margin-left:auto;display:flex;gap:0;flex-shrink:0}
+button.tabbtn{background:transparent;padding:0;width:24px;height:28px;justify-content:center;border-radius:8px;color:var(--text3);flex-shrink:0}
+button.tabbtn.on{background:var(--card);color:var(--text)}
+
+/* cards */
+section{margin:0 10px 10px;background:var(--card);border-radius:var(--r-card);padding:12px}
+h3,.lbl{margin:0;font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--text3)}
+
+/* on air */
+/* small status badges: one cut for all (the ACTIVE / SKIPPED one) */
+.onair-label,.stbadge,button.syncbadge,.tag{display:inline-flex;align-items:center;height:14px;padding:0 6px;border-radius:3px;
+  font-size:8px;line-height:14px;font-weight:700;letter-spacing:.06em;white-space:nowrap;flex-shrink:0;
+  background:rgba(255,255,255,.07);color:var(--text3)}
+.onair-label.run,.stbadge.run{background:rgba(53,201,139,.15);color:var(--green)}
+.onair-label.lost,.stbadge.lost{background:rgba(242,85,90,.15);color:var(--red)}
+.onair-scene{font-size:17px;font-weight:600;margin:4px 0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar{height:6px;background:var(--ins);border-radius:3px;overflow:hidden}
+.bar>div{height:100%;width:100%;background:var(--green);transform-origin:left;transform:scaleX(0);will-change:transform}
+.remaining{font-size:20px;font-weight:600}
+.transport{display:flex;gap:4px}
+.transport button.icon{width:34px;height:30px}
+.transport button.toggle{color:var(--text3)}
+.transport button.toggle.on{background:#0f1d33;color:var(--blue)}
+.transport button.toggle.muted{opacity:.45}
+.chk{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:11px;color:var(--text2);cursor:pointer}
+.chk input{accent-color:var(--green)}
+#pageSync .durbox{width:84px;background:var(--ins)}
+/* a field that opens a menu (same menus as the playlist badges) */
+button.selpick{display:flex;align-items:center;gap:6px;background:var(--ins);border-radius:var(--r-field);padding:6px 8px;
+  min-width:0;text-align:left;color:var(--text);cursor:pointer}
+button.selpick:hover{background:var(--raise)}
+button.selpick::after{content:'';flex-shrink:0;margin-left:auto;border:4px solid transparent;border-top:5px solid var(--text3);border-bottom:0}
+button.selpick span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#defLen{width:84px}
+#pageSync input[type=number]{width:84px}
+#pageSync .durbox input[type=number]{width:auto}
+.mnote{font-size:11px;color:var(--orange);padding:0 8px 6px;max-width:220px}
+.onair-main{align-items:baseline;margin:3px 0 7px}
+.onair-main .onair-scene{margin:0}
+.ellip{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+button.icon.on{background:var(--ins);color:var(--text)}
+.msg{margin-top:8px;padding:6px 9px;border-radius:var(--r-field);background:rgba(242,160,61,.12);color:var(--orange);font-size:11px}
+.msg.err{background:rgba(242,85,90,.12);color:var(--red)}
+#errBox{cursor:pointer}
+.msg.info{background:#0f1d33;color:var(--blue)}
+
+/* playlist */
+.toolbar{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.toolbar select{flex:1;min-width:110px}
+.inline-form{display:flex;gap:4px;margin-top:8px}
+.inline-form input{flex:1}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--text3);font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;user-select:none}
+summary:hover{color:var(--text2)}
+.opts{display:grid;grid-template-columns:auto 1fr;gap:6px 8px;align-items:center;margin-top:8px}
+.opts label{color:var(--text3)}
+
+.bar.thin{height:3px}
+.statusline{margin-top:5px;white-space:normal;overflow-wrap:anywhere;line-height:1.35}
+.statusline:empty{display:none}
+button.syncbadge{background:rgba(242,85,90,.15);color:var(--red)}
+button.syncbadge:hover{background:rgba(242,85,90,.24)}
+button.syncbadge.on{background:rgba(53,201,139,.15);color:var(--green)}
+button.syncbadge.on:hover{background:rgba(53,201,139,.24)}
+/* slave: status badge (top of the on-air card) and its controls */
+.slvstatus{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:4px;flex-shrink:0;
+  font-size:11px;font-weight:700;letter-spacing:.08em;white-space:nowrap}
+.slvstatus::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor}
+.slvstatus.follow{background:rgba(53,201,139,.18);color:var(--green)}
+.slvstatus.free{background:rgba(242,160,61,.18);color:var(--orange)}
+.slvstatus.down{background:rgba(242,85,90,.18);color:var(--red)}
+.slavectl{margin-top:9px;gap:6px}
+button.mlink{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 8px 0 4px;background:transparent;
+  font-size:10px;font-weight:700;letter-spacing:.06em;color:var(--text2)}
+button.mlink:hover{background:var(--ins)}
+button.sbtn{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 9px;border-radius:6px;
+  font-size:10px;font-weight:700;letter-spacing:.06em;white-space:nowrap;flex-shrink:0;
+  background:rgba(242,85,90,.15);color:var(--red)}
+button.sbtn svg{width:13px;height:13px;flex-shrink:0}
+button.sbtn:hover{background:rgba(242,85,90,.24)}
+button.sbtn.on{background:rgba(53,201,139,.15);color:var(--green)}
+button.sbtn.on:hover{background:rgba(53,201,139,.24)}
+button.sbtn:disabled{opacity:.7;background:rgba(255,255,255,.06);color:var(--text3);cursor:default}
+.mroot{display:flex;align-items:center;gap:6px;margin-top:6px;padding:7px 8px;background:var(--ins);border-radius:var(--r-field)}
+.mroot .w{flex:1;min-width:0}
+.mroot .f{font-family:var(--mono);font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mroot .d{font-size:11px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mroot .d.forced{color:var(--blue)} .mroot .d.bad{color:var(--orange)}
+.mroot input{flex:1;min-width:0;background:var(--card)}
+.verfoot{margin:2px 10px 0;text-align:center;font-size:10px;color:var(--text4);letter-spacing:.04em}
+.needf{margin-top:8px;padding:10px;border-radius:var(--r-ins);background:rgba(242,160,61,.10)}
+.needf .t{color:var(--orange);font-weight:700;font-size:12px}
+.needf .r{display:flex;align-items:center;gap:6px;margin-top:6px}
+.needf .r .from{flex:1;min-width:0;font-family:var(--mono);font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.needf input{flex:1;min-width:0;background:var(--card)}
+.items{margin-top:10px;display:flex;flex-direction:column;gap:4px}
+.item{position:relative;background:var(--ins);border-radius:var(--r-ins);padding:6px 6px 6px 2px;overflow:hidden}
+.item .fill{position:absolute;inset:0;background:rgba(53,201,139,.12);pointer-events:none;transform-origin:left;transform:scaleX(0);will-change:transform}
+.item.onair{box-shadow:inset 0 0 0 1px rgba(53,201,139,.55)}
+.item.next{box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+.item.dragging{box-shadow:0 8px 24px rgba(0,0,0,.6),var(--focus);background:var(--raise);z-index:3}
+.item .l1,.item .l2{position:relative;display:flex;align-items:center;gap:5px}
+.item .l1{gap:4px;align-items:flex-start}
+.item .l2{margin-top:4px;padding-left:36px;gap:4px}
+/* duration: one field, the "s" inside it */
+.durbox{display:inline-flex;align-items:center;flex-shrink:0;width:70px;background:var(--card);border-radius:var(--r-field);padding-right:7px;cursor:text}
+.durbox:focus-within{box-shadow:var(--focus)}
+.durbox input.dur{flex:1;min-width:0;width:auto;background:transparent;padding:4px 3px 4px 6px;box-shadow:none}
+.durbox span{color:var(--text4);font-size:11px}
+.item .l2{padding-left:30px}
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.item button.icon{width:26px;height:26px}
+.sname{flex:1;min-width:0;text-align:left;white-space:normal;overflow-wrap:anywhere;line-height:1.3;
+  font-size:13px;font-weight:600;color:var(--text);padding:3px 4px}
+button.scene-btn{background:transparent;display:block;border-radius:6px}
+button.scene-btn:hover{background:var(--card)}
+button.scene-btn.missing{color:var(--orange)}
+button.scene-btn small{font-weight:400;font-size:10px}
+.ro .sname{padding:0;font-weight:500}
+.vid.novid{visibility:hidden}
+/* cue on/off: a small text tag, click to switch */
+button.en,span.en{display:inline-flex;align-items:center;flex-shrink:0;margin:4px 2px 0 4px;height:14px;width:48px;padding:0;justify-content:center;
+  border-radius:3px;font-size:8px;line-height:14px;font-weight:700;letter-spacing:.06em;
+  /* letter-spacing adds space after the last letter: the indent puts the same before it, so the word is centred */
+  text-indent:.06em;background:rgba(242,85,90,.15);color:var(--red)}
+button.en.on,span.en.on{background:rgba(53,201,139,.15);color:var(--green)}
+.ro span.en{margin:0 2px;cursor:default}   /* slave: shown, not clickable */
+/* slave rows: badges in columns (ACTIVE / SKIPPED, then transition, then
+   length); a narrow dock puts them on a second line, right-aligned */
+.ro .item .l1{flex-wrap:wrap;row-gap:4px}
+.ro .item .sname{flex:1 1 80px;min-width:0}
+.ro .robadges{display:flex;align-items:center;gap:6px;margin-left:auto}
+.ro .tslot{width:86px;flex-shrink:0;display:flex;min-width:0}
+.ro .tslot .tsum{max-width:100%;overflow:hidden;text-overflow:ellipsis;display:block}
+.ro .rodur{min-width:46px;text-align:right;flex-shrink:0}
+button.en:hover:not(:disabled){filter:brightness(1.25)}
+.item.off .sname,.item.off .l2,.item.off .num,.ro .item.off .mono{opacity:.4}
+.item.off .sname{text-decoration:line-through}
+/* transition of a cue: two badges, name then length; click = menu */
+.tpair{display:inline-flex;gap:3px;align-items:center}
+button.tsum{border:0;cursor:pointer}
+button.tsum:hover:not(:disabled){filter:brightness(1.3)}
+.tsum.hidden{display:none}
+/* row actions keep their meaning colour: play = green, remove = red */
+.item button.playfrom{color:var(--green)}
+.item button.playfrom:hover:not(:disabled){background:#0f2c1d;color:var(--green)}
+.item button.del{color:var(--red)}
+.item button.del:hover:not(:disabled){background:rgba(242,85,90,.14);color:var(--red)}
+/* transition of a cue: a badge, length in brackets; grey = the default, blue = its own */
+.tsum{display:inline-flex;align-items:center;height:14px;padding:0 6px;border-radius:3px;font-size:8px;line-height:14px;
+  font-weight:700;letter-spacing:.06em;white-space:nowrap;flex-shrink:0;
+  background:rgba(255,255,255,.07);color:var(--text3)}   /* same cut as ACTIVE / SKIPPED */
+.tsum:empty{display:none}
+.tsum.forced{background:rgba(77,144,240,.15);color:var(--blue)}
+/* pop-up menus float on --raise */
+.menu{position:fixed;z-index:50;min-width:190px;max-width:calc(100vw - 12px);max-height:62vh;overflow:auto;
+  background:var(--raise);border-radius:12px;padding:6px;box-shadow:0 18px 44px rgba(0,0,0,.6)}
+.mh{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--text3);padding:4px 8px 6px}
+.mi{display:flex;width:100%;align-items:center;gap:6px;background:transparent;border-radius:7px;padding:6px 8px;
+  font-weight:500;color:var(--text2);text-align:left}
+.mi:hover:not(:disabled){background:rgba(255,255,255,.06);color:var(--text)}
+.mi.on{color:var(--text)}
+.mi .ck{width:14px;display:inline-flex;color:var(--green)}
+.mi .ml{flex:1;min-width:0;white-space:normal;overflow-wrap:anywhere}
+.mi .ms{font-size:11px;color:var(--text3);white-space:nowrap;font-variant-numeric:tabular-nums}
+.mi.sub{color:var(--text3);font-size:11px}
+.mi.danger{color:var(--red);background:transparent}
+.mi.danger:hover:not(:disabled){background:rgba(242,85,90,.14);color:var(--red)}
+.msep{height:1px;background:rgba(255,255,255,.06);margin:5px 8px}
+.mrow{display:flex;align-items:center;gap:6px;padding:6px 8px 4px 28px;color:var(--text2)}
+.mrow input{width:72px;background:var(--ins)}
+.item input,.item select{background:var(--card)}
+.grip{cursor:grab;color:var(--text4);padding:3px 2px;touch-action:none;display:flex}
+.grip:hover{color:var(--text2)} .grip:active{cursor:grabbing}
+.num{width:14px;text-align:right;color:var(--text4);font-size:11px;font-variant-numeric:tabular-nums}
+.item select.scene{flex:1}
+.vid{width:24px;height:24px;padding:0;justify-content:center;border-radius:6px;background:var(--card);color:var(--text3)}
+.vid.same{background:rgba(53,201,139,.12);color:var(--green)}
+.vid.unknown{color:var(--text4)}
+.trans{max-width:150px}
+.unit{color:var(--text4);font-size:11px}
+.ro .grip,.ro .rowbtn{display:none}
+.item[data-locked="1"] .scene-btn:disabled,.item[data-locked="1"] .en:disabled{opacity:1;cursor:default}
+.add{display:flex;gap:6px;margin-top:10px}
+.add select{flex:1}
+.total{display:flex;justify-content:space-between;align-items:baseline;margin-top:10px}
+.total b{font-size:16px;font-variant-numeric:tabular-nums}
+.empty{padding:16px;text-align:center;color:var(--text3);background:var(--ins);border-radius:var(--r-ins)}
+
+/* master / slave */
+.strip{margin-top:8px;padding:5px 9px;border-radius:var(--r-field);font-size:11px;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;background:rgba(242,85,90,.12);color:var(--red)}
+.items.ro{margin-top:0}
+.ro .item{padding:6px 10px 6px 4px}
+.ro .item .l1{gap:6px}
+.cardrow{display:flex;align-items:center;gap:6px}
+.cardrow+.cardrow{margin-top:6px}
+.status{font-size:11px;color:var(--text3);margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* MASTER / SLAVE in the header */
+.roleseg{display:flex;gap:2px;background:var(--card);border-radius:7px;padding:2px;flex-shrink:0}
+.roleseg button{font-size:9px;font-weight:700;letter-spacing:.06em;padding:3px 4px;border-radius:5px;background:transparent;color:var(--text4)}
+.roleseg button:hover:not(.on){color:var(--text2)}
+.roleseg button.on{background:rgba(53,201,139,.15);color:var(--green);cursor:default}
+/* lock mode: nothing can be changed, played or stopped */
+/* the padlock: same size and look as the Home / Settings buttons */
+button.lockbtn{background:transparent;padding:0;width:24px;height:28px;justify-content:center;border-radius:8px;color:var(--text3);flex-shrink:0}
+button.lockbtn:hover:not(.on),button.tabbtn:hover:not(.on){color:var(--text2)}
+button.lockbtn.on{background:rgba(242,85,90,.15);color:var(--red)}   /* locked: changes off */
+/* the padlock in the on-air card, after the transport: same size, a gap before */
+button.lockbtn.inline{width:34px;height:30px;margin-left:8px}
+body.locked #transport, body.locked #plToolbar, body.locked #items, body.locked #addBox, body.locked #roleSeg,
+body.locked #syncBox button, body.locked #syncBox label, body.locked #updBox button, body.locked #finder, body.locked #chooser, body.locked #pageSync section{pointer-events:none}
+body.locked #transport, body.locked #plToolbar, body.locked #addBox, body.locked #roleSeg, body.locked #syncBox button,
+body.locked #updBox button, body.locked #pageSync section, body.locked #items{opacity:.45}
+body.locked #miEye, body.locked #miCopy{pointer-events:auto}
+/* tally (PixelHue): red ON AIR, green PVW, nothing otherwise */
+/* tally badge, in the on-air card: ON AIR solid red, PVW solid green */
+.tallyslot{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0}
+/* top of the on-air card: tally centred on the panel whatever the sides
+   hold; on the right the state badge, the playlist's length under it */
+#onair .toprow{display:grid;grid-template-columns:1fr auto 1fr;align-items:start;column-gap:8px}
+#onair .topleft{justify-self:start;min-width:0;display:flex}
+#onair .topright{justify-self:end;display:flex;flex-direction:column;align-items:flex-end;gap:5px;min-width:0;max-width:100%}
+#plRemaining{font-variant-numeric:tabular-nums;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+/* slave (wide status badge) and narrow docks: the tally on its own line,
+   centred, above the two badges */
+#onair.stack .toprow{grid-template-columns:1fr auto;row-gap:6px}
+#onair.stack .topright{grid-column:2}
+#onair.stack .tallyslot{grid-column:1 / -1;grid-row:1}
+#onair.stack .tallyslot.notally{display:none}
+/* under ON AIR / PVW: the input's name as the switcher sends it, never wider
+   than the badge; a longer name scrolls continuously */
+.tallyslot.on{margin-bottom:8px}   /* some air under the tally block (badge + name) */
+.tallyname{width:104px;overflow:hidden;white-space:nowrap;font-size:9px;font-weight:700;letter-spacing:.06em;color:var(--text2);text-align:center}
+.tallyname.hidden{display:none}
+.tallyname.scroll{text-align:left}
+.tallyname.scroll .tn{display:inline-block;padding-right:24px;animation:tallyScroll linear infinite}
+@keyframes tallyScroll{from{transform:translateX(0)}to{transform:translateX(-100%)}}
+@media (prefers-reduced-motion:reduce){.tallyname.scroll .tn{animation:none}}
+.tallybadge{font-size:15px;font-weight:800;letter-spacing:.16em;text-indent:.16em;padding:6px 16px;border-radius:6px;
+  color:#fff;flex-shrink:0;line-height:1.1}
+/* ON AIR / PVW: a rectangle in the logo's font (Poppins Bold, capitals),
+   semi-transparent like the app's buttons and breathing: ON AIR red (with
+   the frame around the panel), PVW green */
+.tallybadge.pgm,.tallybadge.pvw{font:700 18px/1 'Poppins',var(--font);text-transform:uppercase;letter-spacing:.06em;text-indent:.06em;
+  width:104px;box-sizing:border-box;text-align:center;padding:5px 0 6px;border-radius:4px;color:#fff}   /* ON AIR and PVW: the same box */
+.tallybadge.pgm{background:rgba(242,85,90,.18);color:var(--red);animation:signPulse 1.8s ease-in-out infinite}
+.tallybadge.pvw{background:rgba(53,201,139,.18);color:var(--green);animation:pvwPulse 1.8s ease-in-out infinite}
+@keyframes signPulse{0%,100%{background-color:rgba(242,85,90,.12)}50%{background-color:rgba(242,85,90,.32)}}
+@keyframes pvwPulse{0%,100%{background-color:rgba(53,201,139,.12)}50%{background-color:rgba(53,201,139,.30)}}
+.tallybadge.lost{font:700 8px/14px var(--font);height:14px;padding:0 6px;border-radius:3px;letter-spacing:.06em;text-indent:0;
+  background:rgba(242,85,90,.15);color:var(--red)}   /* switcher not answering: disconnected */
+/* ON AIR: the whole panel framed in red, breathing */
+#airFrame{position:fixed;inset:0;pointer-events:none;z-index:80;border:3px solid var(--red);opacity:0;
+  box-shadow:inset 0 0 18px rgba(242,85,90,.6);transition:opacity .3s}
+body.onair #airFrame{animation:breathe 1.8s ease-in-out infinite}
+@keyframes breathe{0%,100%{opacity:.35}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){body.onair #airFrame{animation:none;opacity:1} .tallybadge.pgm,.tallybadge.pvw{animation:none}}
+/* narrow dock (300 px): ON AIR on its own line, smaller logo */
+@media (max-width:360px){
+  #onair .toprow{grid-template-columns:1fr auto;row-gap:6px}
+  #onair .tallyslot{grid-column:1 / -1;grid-row:1}
+  #onair .tallyslot.notally{display:none}
+  #onair .topright{grid-column:2}
+  .logo{font-size:11.5px;letter-spacing:0}
+  header{gap:2px;padding-left:8px}
+  .roleseg button{padding:3px 3px;letter-spacing:.02em}
+}
+/* OBS WebSocket banner */
+.banner{margin:0 10px 10px;border-radius:var(--r-card);padding:12px;background:rgba(242,160,61,.10)}
+.banner.err{background:rgba(242,85,90,.10)}
+.banner .t{color:var(--orange);font-weight:700;font-size:12px;display:flex;align-items:center;gap:6px}
+.banner.err .t{color:var(--red)}
+.banner ol{margin:8px 0 0;padding-left:18px;color:var(--text2);font-size:11.5px;line-height:1.6}
+.banner b{color:var(--text)}
+.banner .foot{margin-top:8px;font-size:11px;color:var(--text3);display:flex;align-items:center;gap:6px}
+.banner p{margin:6px 0 0;color:var(--text2);font-size:11.5px;line-height:1.5}
+.spin{width:12px;height:12px;border-radius:50%;border:2px solid var(--text4);border-top-color:var(--blue);flex-shrink:0;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* first launch: choose the role */
+.choose{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.choose button{display:block;text-align:left;white-space:normal;padding:12px;border-radius:var(--r-ins);background:var(--ins)}
+.choose button .h{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);font-weight:700}
+.choose button .d{margin-top:4px;color:var(--text3);font-weight:500;font-size:11.5px;line-height:1.45}
+.choose button:hover{background:var(--raise)}
+/* slave: find the master */
+.found{display:flex;flex-direction:column;gap:4px;margin-top:10px}
+.fr{background:var(--ins);border-radius:var(--r-ins);padding:8px 10px;cursor:pointer}
+.fr:hover{background:var(--raise)}
+.fr.sel{box-shadow:inset 0 0 0 1px rgba(77,144,240,.6);cursor:default;background:var(--ins)}
+.fr.dis{opacity:.5;cursor:default}
+.fr .a{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.fr .n{font-weight:700;font-size:12.5px;color:var(--text)}
+.fr .ip{font-size:11px;color:var(--text3);font-variant-numeric:tabular-nums;margin-top:2px}
+.tag{background:rgba(77,144,240,.15);color:var(--blue)}
+.tag.g{background:rgba(255,255,255,.06);color:var(--text3)}
+.pwrow{display:flex;gap:6px;margin-top:8px}
+.pwrow input{flex:1;background:var(--card)}
+.fr .note,.finder-note{font-size:11px;color:var(--text3);margin-top:6px;line-height:1.4}
+.ferr{font-size:11px;color:var(--red);margin-top:6px}
+a.lnk{color:var(--text3);font-size:11px;text-decoration:underline;cursor:pointer}
+a.lnk:hover{color:var(--text2)}
+.manual{margin-top:8px;padding:10px;background:var(--ins);border-radius:var(--r-ins)}
+.manual input{background:var(--card)}
+/* master: connection info for the slaves */
+.kv{display:grid;grid-template-columns:auto 1fr auto;gap:4px 8px;align-items:center;margin-top:8px}
+.kv .k{color:var(--text3);font-size:11px}
+.kv .v{background:var(--ins);border-radius:var(--r-field);padding:5px 8px;font-variant-numeric:tabular-nums;color:var(--text);
+  font-family:var(--mono);font-size:11.5px;overflow-wrap:anywhere;user-select:text}
+.kv .v.muted{color:var(--text3);font-family:var(--font)}
+/* confirmation */
+.overlay{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px}
+.modal{background:var(--raise);border-radius:14px;padding:14px;box-shadow:0 18px 44px rgba(0,0,0,.6);max-width:360px}
+.modal .t{font-weight:700;font-size:13px;color:var(--text)}
+.modal p{margin:8px 0 12px;color:var(--text2);font-size:11.5px;line-height:1.5}
+.modal .b{display:flex;gap:6px;justify-content:flex-end}
+/* Sync: what to copy, one switch each (green on, red off) */
+.swrow{display:flex;align-items:center;gap:10px;padding:7px 0;font-size:12px;color:var(--text);cursor:pointer}
+.swrow small{display:block;color:var(--text3);font-size:10.5px;margin-top:1px}
+.swrow.all{border-top:1px solid rgba(255,255,255,.06);margin-top:2px;padding-top:9px;font-weight:700}
+.sw{position:relative;width:30px;height:17px;border-radius:9px;background:rgba(242,85,90,.35);flex-shrink:0;transition:background .15s}
+.sw::after{content:'';position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:#fff;transition:transform .15s}
+.sw.on{background:var(--green)} .sw.on::after{transform:translateX(13px)}
+button.warnbtn{background:rgba(242,160,61,.18);color:var(--orange)}
+/* duration following the default: grey */
+.durbox input.dur.def::placeholder{color:var(--text3)}
+/* cue duration: a field that opens a menu (grey: the default duration) */
+button.durbtn{flex-shrink:0;width:70px;justify-content:flex-end;background:var(--card);border-radius:var(--r-field);padding:4px 7px;color:var(--text);font-size:12px}
+button.durbtn:hover:not(:disabled){background:var(--raise)}
+button.durbtn.def{color:var(--text3)}
+</style>
+</head>
+<body>
+
+<div id="airFrame"></div>
+<header>
+  <div class="logo" title="OBS Conductor">obs<span>.</span>conductor</div>
+  <span class="dot" id="obsDot"></span>
+  <span id="obsTxt"></span>
+  <div class="roleseg" id="roleSeg">
+    <button id="roleM" title="This PC plays its own playlists">MASTER</button>
+    <button id="roleS" title="This PC follows a master">SLAVE</button>
+  </div>
+  <div class="tabs">
+    <button class="tabbtn on" id="tabPlaylist" title="Home: on air and playlist"></button>
+    <button class="tabbtn" id="tabSync" title="Settings"></button>
+  </div>
+</header>
+
+<!-- ============ PLAYLIST TAB ============ -->
+<div id="pagePlaylist">
+
+  <div id="wsBanner" class="banner hidden"></div>
+
+  <section id="chooser" class="hidden">
+    <span class="lbl">This PC is...</span>
+    <div class="choose">
+      <button id="chooseM"><div class="h"><span class="ic-crown"></span>Master</div>
+        <div class="d">Plays the playlists.</div></button>
+      <button id="chooseS"><div class="h"><span class="ic-mirror"></span>Slave</div>
+        <div class="d">Follows a master.</div></button>
+    </div>
+    <div class="status">Change it later at the top.</div>
+  </section>
+
+  <section id="finder" class="hidden">
+    <div class="cardrow"><span class="lbl grow">Find the master</span>
+      <button class="icon ghost" id="btnRescan" title="Scan the network again"></button>
+      <button class="icon ghost hidden" id="btnFinderClose" title="Keep the current master"></button></div>
+    <div class="status" id="finderStatus"></div>
+    <div class="found" id="foundList"></div>
+    <div style="margin-top:8px"><a class="lnk" id="lnkManual">Not in the list? Type its address</a></div>
+    <div class="manual hidden" id="manualBox">
+      <div class="cardrow"><input id="manHost" class="grow" placeholder="Master IP (192.168.1.10)"><input id="manPort" type="number" value="4455" title="OBS WebSocket port of the master"></div>
+      <div class="pwrow"><input id="manPass" type="password" placeholder="Master's password"><button class="primary" id="manGo">Connect</button></div>
+      <div class="ferr hidden" id="manErr"></div>
+    </div>
+  </section>
+
+  <section id="onair">
+    <div class="row toprow">
+      <span class="topleft"></span>
+      <span class="tallyslot"><span class="tallybadge hidden" id="tallyBadge"></span><span class="tallyname hidden" id="tallyName"></span></span>
+      <span class="topright"><span class="onair-label" id="onairLabel">IDLE</span><span class="slvstatus hidden" id="slvStatus"></span><span class="onair-label hidden" id="plRemaining"></span></span>
+    </div>
+    <div class="row onair-main">
+      <div class="onair-scene grow" id="onairScene">-</div>
+      <span class="remaining mono" id="onairRemain">--:--</span>
+    </div>
+    <div class="bar"><div id="onairBar"></div></div>
+    <div class="row" style="margin-top:7px">
+      <span class="small faint grow ellip" id="onairNext"></span>
+      <div class="transport" id="transport">
+        <button class="icon primary" id="btnPlay" title="Play from the first enabled cue"></button>
+        <button class="icon toggle" id="btnLoop" title="Loop"></button>
+        <button class="icon stop" id="btnStop" title="Stop"></button>
+        <button class="icon toggle" id="btnEnd" title="At the end"></button>
+      </div>
+      <button class="lockbtn inline" id="btnLock"></button>
+    </div>
+    <div id="syncBox" class="hidden">
+      <div class="row slavectl" id="slaveCtl">
+        <button class="mlink" id="swMaster" role="switch"><span class="sw"></span><span>MASTER</span></button>
+        <button class="sbtn" id="btnAuto"></button>
+        <button class="sbtn" id="btnSyncScenes" title="Copy the master's media, OBS settings and scenes to this PC"></button>
+        <button class="icon ghost hidden" id="btnSyncCancel" title="Cancel"></button>
+        <span class="grow"></span>
+      </div>
+      <div class="small faint statusline" id="syncStatus"></div>
+      <div class="bar thin hidden" id="syncBarBox" style="margin-top:6px"><div id="syncBar" style="background:var(--blue)"></div></div>
+      <div id="needFolders" class="hidden"></div>
+    </div>
+    <div id="updBox" class="hidden">
+      <div class="small statusline" id="updTxt"></div>
+      <div class="row" style="margin-top:4px">
+        <span class="grow"></span>
+        <button class="primary hidden" id="btnUpdate">Update</button>
+        <button class="icon ghost hidden" id="btnUpdCancel" title="Cancel"></button>
+      </div>
+      <div class="bar thin hidden" id="updBarBox" style="margin-top:6px"><div id="updBar" style="background:var(--blue)"></div></div>
+    </div>
+    <div id="slaveInfo" class="strip hidden"></div>
+    <div id="errBox" class="msg err hidden"></div>
+  </section>
+
+  <section id="plCard">
+    <div class="toolbar" id="plToolbar">
+      <select id="plSelect" title="Playlist"></select>
+      <button class="icon ghost" id="btnPlMenu" title="Playlist menu"></button>
+      <span class="hidden">
+        <button id="btnNew"></button><button id="btnDup"></button><button id="btnRename"></button><button id="btnDelete"></button>
+        <input type="file" id="fileIn" accept=".obsplaylist,.yaml,.yml">
+      </span>
+    </div>
+    <div class="inline-form hidden" id="nameForm">
+      <input id="nameInput" placeholder="Playlist name" maxlength="60">
+      <button class="primary" id="nameOk">OK</button>
+      <button id="nameCancel">Cancel</button>
+    </div>
+
+
+    <div class="items" id="items"></div>
+
+    <div class="add" id="addBox">
+      <select id="addScene"></select>
+      <button class="icon primary" id="btnAdd" title="Add a cue with this scene at the end"></button>
+    </div>
+  </section>
+</div>
+
+<!-- ============ SETTINGS TAB ============ -->
+<div id="pageSync" class="hidden">
+  <section id="secPlayback">
+    <div class="cardrow"><span class="lbl grow">Default settings</span></div>
+    <div class="small dim" style="margin-top:8px">Default transition</div>
+    <div class="cardrow" style="margin-top:4px" title="For cues without their own transition">
+      <button class="selpick grow" id="defTrans"></button>
+      <button class="selpick mono" id="defLen" title="Length"></button>
+    </div>
+    <div class="small dim" style="margin-top:10px">Default scene duration</div>
+    <div class="cardrow" style="margin-top:4px" title="For cues without their own duration (grey)">
+      <span class="small faint grow">Cues without their own</span>
+      <label class="durbox"><input type="number" id="defDur" class="mono" min="0.5" step="0.5"><span>s</span></label>
+    </div>
+    <label class="chk" title="Leave off if OBS already restarts them">
+      <input type="checkbox" id="setRestart"> Restart videos when their scene goes on air</label>
+  </section>
+
+  <section id="secMaster">
+    <div class="cardrow" title="What the slaves connect to: this PC's OBS WebSocket"><span class="lbl grow">WebSocket server</span><span class="dot" id="miDot"></span></div>
+    <div class="kv">
+      <span class="k">IP</span><span class="v" id="miIp"></span><span></span>
+      <span class="k">Port</span><span class="v" id="miPort"></span><span></span>
+      <span class="k">Password</span><span class="v" id="miPass"></span>
+      <span class="row" style="gap:2px"><button class="icon ghost" id="miEye" title="Show / hide"></button><button class="icon ghost" id="miCopy" title="Copy"></button></span>
+    </div>
+    <div class="status" id="miNote"></div>
+  </section>
+
+  <section id="secSlave" class="hidden">
+    <div class="cardrow"><span class="lbl grow">Master</span><span class="stbadge" id="msBadge">NOT CONFIGURED</span></div>
+    <div class="kv">
+      <span class="k">PC</span><span class="v" id="msName"></span><span></span>
+      <span class="k">Address</span><span class="v" id="msAddr"></span><span></span>
+    </div>
+    <div class="status" id="msStatus"></div>
+    <div class="cardrow" style="margin-top:10px"><button id="btnChangeMaster">Find another master</button></div>
+  </section>
+
+  <section id="secFallback" class="hidden">
+    <div class="cardrow" title="What this PC shows when it loses the master"><span class="lbl grow">Fallback</span></div>
+    <div class="swrow" id="fbSwRow" style="margin-top:4px"><span class="sw" id="fbSw"></span>
+      <span class="grow">Show a fallback scene<small id="fbNote"></small></span></div>
+    <div class="cardrow" id="msFbSceneRow" title="Shown here when the master is lost">
+      <span class="small dim grow">Choose a scene</span>
+      <select id="msFallback" style="width:170px"></select>
+    </div>
+  </section>
+
+  <section id="secMedia" class="hidden">
+    <div class="cardrow"><span class="lbl grow">Medias location</span>
+      <button class="icon ghost" id="btnRoots" title="Ask the master again"></button></div>
+    <div class="swrow" id="mdSwRow" style="margin-top:4px"><span class="sw" id="mdSw"></span>
+      <span class="grow">Same as master<small id="mdNote"></small></span></div>
+    <div id="rootsList"></div>
+  </section>
+
+  <section id="secTally">
+    <div class="cardrow" title="PixelHue Q8 / P20 / P80: is this OBS on air? (reads only, never sends a command)"><span class="lbl grow">Tally</span><span class="stbadge" id="tlBadge">OFF</span></div>
+    <div class="cardrow" style="margin-top:8px">
+      <span class="small dim grow">Switcher address</span>
+      <input id="tlHost" placeholder="192.168.0.10" style="width:130px" title="IP of the PixelHue. Empty: no tally">
+    </div>
+    <div class="cardrow">
+      <span class="small dim grow">Input of this OBS</span>
+      <select id="tlInput" style="width:150px" title="The switcher input this PC's OBS feeds (list read from the switcher)"></select>
+      <button class="icon ghost" id="tlRefresh" title="Read the inputs again"></button>
+    </div>
+    <div class="status" id="tlStatus"></div>
+    <div class="cardrow" style="margin-top:8px">
+      <button id="tlTest" title="Connects to the switcher again and reads its inputs (reads only)">Test connection</button>
+      <span class="small grow ellip" id="tlTestRes"></span>
+    </div>
+  </section>
+
+  <section id="secApp">
+    <div class="cardrow" title="This app: the dock's web server on this PC"><span class="lbl grow">OBS Conductor server</span><span class="small faint" id="setVersion"></span></div>
+    <div class="cardrow" style="margin-top:8px">
+      <span class="small dim grow">Dock port</span>
+      <input id="setPort" type="number" title="Applies after a restart">
+    </div>
+    <div class="cardrow">
+      <span class="small dim grow">Reachable from</span>
+      <select id="setBind" title="A master needs the network. Applies after a restart.">
+        <option value="0.0.0.0">the network</option>
+        <option value="127.0.0.1">this PC only</option>
+      </select>
+    </div>
+    <div class="status" id="setIps"></div>
+    <div class="status hidden" id="setRestartNote" style="color:var(--orange);white-space:normal">Restart the app to apply. New port: close OBS once, the dock follows.</div>
+    <div class="cardrow" style="margin-top:10px"><span class="grow"></span>
+      <button class="danger" id="btnQuit" title="Stop the app on this PC">Quit OBS Conductor</button></div>
+  </section>
+</div>
+
+<div class="verfoot" id="verFoot"></div>
+
+<div id="down" class="overlay hidden"><div class="modal">
+  <div class="t" id="downT">OBS Conductor is not running</div>
+  <p id="downP"></p>
+  <div class="row small faint"><span class="spin"></span>Waiting...</div>
+</div></div>
+
+<div id="syncModal" class="overlay hidden"><div class="modal" style="min-width:260px">
+  <div class="t">Sync from the master</div>
+  <div style="margin:8px 0 12px">
+    <div class="swrow" data-k="scenes"><span class="sw"></span><span class="grow">Scenes<small>Reloads them here: short blank on the output</small></span></div>
+    <div class="swrow" data-k="media"><span class="sw"></span><span class="grow">Media<small>Copies the files the scenes use</small></span></div>
+    <div class="swrow" data-k="obs"><span class="sw"></span><span class="grow">OBS settings<small>Canvas, output, FPS, colour, audio</small></span></div>
+    <div class="swrow all" data-k="all"><span class="sw"></span><span class="grow">All</span></div>
+  </div>
+  <div class="b"><button id="syncNo">Cancel</button><button id="syncOk" class="primary">Sync</button></div>
+</div></div>
+
+<div id="modal" class="overlay hidden"><div class="modal">
+  <div class="t" id="modalT"></div><p id="modalP"></p>
+  <div class="b"><button id="modalNo">Cancel</button><button id="modalOk" class="warnbtn"></button></div>
+</div></div>
+
+<script>
+// ---------- tiny helpers ----------
+const $ = id => document.getElementById(id);
+const RELEASES = 'github.com/noar-justedit/obs-conductor/releases';
+/** This PC's system: from the app, or guessed by the browser (app not running). */
+const osName = () => (typeof S !== 'undefined' && S && S.platform) ||
+  (/Mac/i.test(navigator.platform) ? 'darwin' : /Win/i.test(navigator.platform) ? 'win32' : 'linux');
+/** Where to start the app from, worded for this system. */
+const startHint = () => ({ win32: 'Start menu &rsaquo; OBS Conductor', darwin: 'Applications &rsaquo; OBS Conductor' })[osName()] ||
+  'the applications menu &rsaquo; OBS Conductor';
+const ICON = {
+  play:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>',
+  stop:'<svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="1.5"/></svg>',
+  next:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 5v14l10-7zM17 5h2.5v14H17z"/></svg>',
+  grip:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>',
+  x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  copy:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>',
+  pen:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>',
+  trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+  home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+  list:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>',
+  link:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h11l-3-3M17 17H6l3 3"/></svg>',
+  gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>',
+  sync:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 0 1-14 5.3M4 12a8 8 0 0 1 14-5.3M18 3v4h-4M6 21v-4h4"/></svg>',
+  autosync:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 0 1-14 5.3M4 12a8 8 0 0 1 14-5.3M18 3v4h-4M6 21v-4h4"/><path d="M9.6 15l2.4-6 2.4 6M10.4 13.1h3.2" stroke-width="1.9"/></svg>',
+  crown:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5z"/></svg>',
+  mirror:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="6" width="8" height="12" rx="1.5"/><rect x="13" y="6" width="8" height="12" rx="1.5" stroke-dasharray="2.5 2"/></svg>',
+  refresh:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>',
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+  loop:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l3 3-3 3"/><path d="M4 11V9a4 4 0 0 1 4-4h12"/><path d="M7 22l-3-3 3-3"/><path d="M20 13v2a4 4 0 0 1-4 4H4"/></svg>',
+  toScene:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h10M10 8l4 4-4 4"/><rect x="16" y="6" width="5" height="12" rx="1.5"/></svg>',
+  flag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4"/><path d="M5 4h12l-2.5 4L17 12H5"/></svg>',
+  cog:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+  lock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+  unlock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.8-1.2"/></svg>',
+  more:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+  eye:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+  film:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14M17 5v14M3 9h4M3 15h4M17 9h4M17 15h4"/></svg>',
+};
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function fmt(sec, tenths){
+  if (sec == null || isNaN(sec)) return '--:--';
+  sec = Math.max(0, sec);
+  const h = Math.floor(sec/3600), m = Math.floor(sec%3600/60), s = sec%60;
+  const ss = tenths ? s.toFixed(1).padStart(4,'0') : String(Math.floor(s)).padStart(2,'0');
+  return (h ? h + ':' + String(m).padStart(2,'0') : String(m)) + ':' + ss;
+}
+function fmtSec(v){ return (Math.round(v*100)/100).toString(); }
+async function api(path, opts){
+  const r = await fetch(path, opts && opts.body !== undefined ? {
+    method: opts.method || 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(opts.body)
+  } : opts);
+  let j = {};
+  try { j = await r.json(); } catch(e) {}
+  if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
+function flashError(msg){
+  const b = $('errBox'); b.textContent = msg; b.className = 'msg err'; b.dataset.src = '';
+  // hide it later, unless an error of the app took its place meanwhile
+  clearTimeout(flashError.t); flashError.t = setTimeout(() => { if (b.dataset.src !== 'state') b.classList.add('hidden'); }, 6000);
+}
+
+let errDismissed = null;
+$('errBox').onclick = () => {
+  const b = $('errBox');
+  if (b.dataset.src === 'state') { errDismissed = b.textContent; api('/api/error/clear', {body: {}}).catch(() => {}); }
+  b.classList.add('hidden'); b.dataset.src = '';
+};
+
+// ---------- state ----------
+let S = null;                 // last /api/state
+let stateAt = 0;              // performance.now() when S arrived
+let scenes = [];
+let trans = {names:[], fixed:[]};
+let plName = null, pl = null, plRev = null, plFile = null;
+let media = {};               // scene -> {duration, media:[...]} or 'loading'
+let saveTimer = null, dirty = false;
+let pendingName = null;       // 'new' | 'dup' | 'rename'
+let confirmDelete = false;
+
+const isSlave = () => S && S.role === 'slave';
+const hasMaster = () => !!(S && S.master_link && S.master_link.host);
+const defDur = () => (pl && pl.default_duration) || 10;
+const durOf = (list, it) => (it.duration != null ? it.duration : ((list && list.default_duration) || 10));
+
+// ---------- static icons ----------
+$('btnPlay').innerHTML = ICON.play;
+$('btnLoop').innerHTML = ICON.loop;
+$('btnEnd').innerHTML = ICON.toScene;
+$('btnStop').innerHTML = ICON.stop;
+$('btnNew').innerHTML = ICON.plus; $('btnDup').innerHTML = ICON.copy;
+$('btnRename').innerHTML = ICON.pen; $('btnDelete').innerHTML = ICON.trash;
+$('btnAdd').innerHTML = ICON.plus;
+$('btnPlMenu').innerHTML = ICON.more;
+
+$('tabPlaylist').innerHTML = ICON.home;
+$('tabSync').innerHTML = ICON.cog;
+document.querySelector('.ic-crown').innerHTML = ICON.crown;
+document.querySelector('.ic-mirror').innerHTML = ICON.mirror;
+$('btnRescan').innerHTML = ICON.refresh;
+$('btnFinderClose').innerHTML = ICON.x;
+$('miEye').innerHTML = ICON.eye;
+$('miCopy').innerHTML = ICON.copy;
+$('btnRoots').innerHTML = ICON.refresh;
+$('btnSyncCancel').innerHTML = ICON.x;
+$('btnUpdCancel').innerHTML = ICON.x;
+$('tlRefresh').innerHTML = ICON.sync;
+
+// ---------- general settings ----------
+let gen = null;
+async function loadSettings(){
+  try { gen = await api('/api/settings'); } catch(e) { return; }
+  showDefTrans();
+  $('setRestart').checked = !!gen.playback.restart_media_on_switch;
+  $('defDur').value = fmtSec(gen.default_duration);
+  $('setPort').value = gen.dashboard.port; $('setBind').value = gen.dashboard.bind;
+  if (document.activeElement !== $('tlHost')) $('tlHost').value = (gen.tally && gen.tally.host) || '';
+  loadTallyInputs();
+  $('setVersion').textContent = gen.simulated ? 'simulation' : '';
+  $('setIps').textContent = gen.local_ips && gen.local_ips.length ? 'This PC: ' + gen.local_ips.join(' / ') : '';
+}
+$('tlHost').onchange = async () => { await saveSettings({tally: {host: $('tlHost').value}}); loadTallyInputs(); };
+$('tlInput').onchange = () => saveSettings({tally: {input: $('tlInput').value}});
+$('tlRefresh').onclick = () => loadTallyInputs();
+
+/** Where an input is right now, in the list: tells the OBS feed from a look-alike. */
+function whereLabel(t){
+  if (!t) return '';
+  if (t.pgm && t.pgm.length) return ' · on air: ' + t.pgm.join(', ');
+  if (t.pvw && t.pvw.length) return ' · preview: ' + t.pvw.join(', ');
+  if (t.multiviewer) return ' · multiviewer only';
+  return '';
+}
+
+/** Settings > Tally: the switcher's inputs, read from it (nothing to type). */
+let tallyInputs = [], tallyListError = '';
+// the list shows where each input is now: read again while Settings is open
+setInterval(() => { if (!$('pageSync').classList.contains('hidden') && document.activeElement !== $('tlInput') && $('tlHost').value.trim()) loadTallyInputs(true); }, 10000);
+async function loadTallyInputs(quiet){
+  const sel = $('tlInput');
+  let cur = (gen && gen.tally && gen.tally.input) || '';
+  if (!$('tlHost').value.trim()) { sel.innerHTML = '<option value="">Type the address first</option>'; sel.disabled = true; return; }
+  if (!quiet) { sel.disabled = true; sel.innerHTML = '<option>Reading the inputs...</option>'; }
+  let err = null;
+  let suggest = null, pc = '', states = {};
+  try { const j = await api('/api/tally/inputs'); tallyInputs = j.inputs || []; suggest = j.suggest; pc = j.pc || ''; states = j.states || {}; }
+  catch(e) { err = e.message; tallyInputs = []; }
+  // nothing chosen yet: the input named like this PC is taken at once
+  let auto = false;
+  if (!cur && suggest) { cur = suggest; auto = true; saveSettings({tally: {input: suggest}}); }
+  const list = tallyInputs.slice();
+  if (cur && !list.includes(cur)) list.unshift(cur);
+  sel.innerHTML = '<option value="">' + (err ? 'Switcher not reachable' : list.length ? 'Choose...' : 'No input found') + '</option>' +
+    list.map(n => `<option value="${esc(n)}"${n === cur ? ' selected' : ''}>${esc(n)}${tallyInputs.includes(n) || err ? (n === cur ? '' : esc(whereLabel(states[n]))) : ' (not on the switcher)'}</option>`).join('');
+  sel.disabled = false;
+  tallyListError = err ? 'Its inputs could not be read.' : '';
+  if (!err && auto) flashInfo(`Tally: "${suggest}" chosen (like this PC's name, ${pc})`);
+}
+
+$('tlTest').onclick = async () => {
+  const b = $('tlTest'), out = $('tlTestRes');
+  b.disabled = true; out.style.color = ''; out.textContent = 'Testing...'; out.title = '';
+  const host = $('tlHost').value.trim();
+  if (gen && gen.tally && host !== (gen.tally.host || '')) await saveSettings({tally: {host}});
+  try {
+    const j = await api('/api/tally/test');
+    out.textContent = j.ok ? `✓ Answered in ${j.ms} ms · ${j.inputs} input${j.inputs > 1 ? 's' : ''}, ${j.screens} screen${j.screens > 1 ? 's' : ''}`
+                           : '✗ ' + (j.error || 'No answer');
+    out.title = j.ok ? `${j.host}:${j.port} · SN ${j.sn}` : (j.error || '');
+    out.style.color = j.ok ? 'var(--green)' : 'var(--red)';
+    if (j.ok) loadTallyInputs(true);
+  } catch(e) { out.textContent = '✗ ' + e.message; out.style.color = 'var(--red)'; }
+  b.disabled = false;
+};
+
+/** Tally bar at the very top (ON AIR red, PVW green) and its Settings card. */
+function renderTally(){
+  const t = (S && S.tally) || {};
+  const bar = $('tallyBadge');
+  const lost = t.configured && !t.connected && t.error;
+  const cls = !t.configured ? '' : t.state === 'pgm' ? 'pgm' : t.state === 'pvw' ? 'pvw' : lost ? 'lost' : '';
+  bar.className = 'tallybadge' + (cls ? ' ' + cls : ' hidden');
+  bar.parentElement.classList.toggle('on', cls === 'pgm' || cls === 'pvw');
+  bar.parentElement.classList.toggle('notally', !cls);
+  bar.textContent = cls === 'pgm' ? 'ON AIR' : cls === 'pvw' ? 'PVW' : cls === 'lost' ? 'NO TALLY' : '';
+  bar.title = lost ? t.error : cls === 'pgm' ? `${t.input} on air: ${(t.pgm || []).join(', ')}`
+    : cls === 'pvw' ? `${t.input} in preview: ${(t.pvw || []).join(', ')}` : '';
+  // the input's name under ON AIR / PVW (scrolls if wider than the badge)
+  const nm = $('tallyName'), name = (cls === 'pgm' || cls === 'pvw') ? String(t.input || '') : '';
+  nm.classList.toggle('hidden', !name);
+  if (nm.dataset.name !== name) {
+    nm.dataset.name = name;
+    nm.classList.remove('scroll');
+    nm.innerHTML = `<span class="tn">${esc(name)}</span>`;
+    nm.title = name;
+    if (name && nm.scrollWidth > nm.clientWidth) {
+      // two copies one after the other: the loop has no visible jump
+      nm.classList.add('scroll');
+      nm.innerHTML = `<span class="tn">${esc(name)}</span><span class="tn">${esc(name)}</span>`;
+      const w = nm.querySelector('.tn').offsetWidth;
+      nm.querySelectorAll('.tn').forEach(e => { e.style.animationDuration = Math.max(3, w / 25) + 's'; });   // ~25 px/s
+    }
+  }
+  // ON AIR: red breathing frame around the whole panel (not for PVW)
+  document.body.classList.toggle('onair', cls === 'pgm');
+  // Settings
+  $('tlBadge').textContent = !t.configured ? 'OFF' : t.connected ? 'CONNECTED' : 'DISCONNECTED';
+  $('tlBadge').className = 'stbadge' + (!t.configured ? '' : t.connected ? ' run' : ' lost');
+  const act = !t.configured || (t.connected && t.state === 'none' && t.multiviewer);
+  $('tlStatus').textContent = !t.configured ? (t.host ? 'Choose the input of this OBS.' : 'Type the switcher\'s address.')
+    : t.connected ? (t.state === 'pgm' ? `"${t.input}" is on air: ${(t.pgm || []).join(', ')}`
+      : t.state === 'pvw' ? `"${t.input}" is in preview: ${(t.pvw || []).join(', ')}`
+      : `"${t.input}": not on air` + (t.multiviewer ? ' (only on the multiviewer: the right input?)' : ''))
+    : t.error ? 'The switcher doesn\'t answer.' + (tallyListError ? ' ' + tallyListError : '') : 'Connecting...';
+  $('tlStatus').title = t.error || '';
+  $('tlStatus').style.color = act ? 'var(--orange)' : (t.configured && !t.connected && t.error) ? 'var(--red)' : '';
+}
+
+async function saveSettings(body){
+  try {
+    const j = await api('/api/settings', {body});
+    $('setRestartNote').classList.toggle('hidden', !j.restart_needed);
+    gen = {...gen, ...j.settings};
+    if (body.default_transition && pl) { pl.default_transition = j.settings.default_transition; renderItems(); }
+    if (body.default_duration != null && pl) { pl.default_duration = j.settings.default_duration; renderItems(); }
+  } catch(e) { flashError(e.message); }
+}
+/** Default transition: two fields that open the playlist's menus. */
+function showDefTrans(){
+  const dt = gen.default_transition;
+  $('defTrans').innerHTML = `<span>${esc(dt.name)}</span>`;
+  $('defLen').innerHTML = `<span>${fmtSec(dt.duration_ms / 1000)}s</span>`;
+  $('defLen').classList.toggle('hidden', isFixed(dt.name));
+}
+function setDefTrans(t){
+  gen.default_transition = t; showDefTrans(); closeMenu();
+  saveSettings({default_transition: t});
+}
+$('defTrans').onclick = e => openMenu(e.currentTarget, m => {
+  menuHead(m, 'Default transition');
+  const dt = gen.default_transition;
+  const names = trans.names.length ? trans.names.slice() : [];
+  if (!names.includes(dt.name)) names.unshift(dt.name);
+  for (const n of names) menuItem(m, {label: n, side: isFixed(n) ? 'fixed length' : '', checked: n === dt.name,
+    onClick: () => setDefTrans({name: n, duration_ms: dt.duration_ms || 500})});
+});
+$('defLen').onclick = e => openMenu(e.currentTarget, m => {
+  menuHead(m, 'Transition length');
+  lengthItems(m, gen.default_transition.duration_ms, ms => setDefTrans({name: gen.default_transition.name, duration_ms: ms}));
+});
+$('setRestart').onchange = () => saveSettings({playback: {restart_media_on_switch: $('setRestart').checked}});
+$('defDur').onchange = () => {
+  const v = Math.max(0.5, parseFloat($('defDur').value) || 10);
+  $('defDur').value = fmtSec(v);
+  saveSettings({default_duration: v});
+};
+$('setPort').onchange = () => saveSettings({dashboard: {port: parseInt($('setPort').value) || 8090}});
+$('setBind').onchange = () => saveSettings({dashboard: {bind: $('setBind').value}});
+
+// ---------- tabs ----------
+function showTab(t){
+  $('pagePlaylist').classList.toggle('hidden', t !== 'playlist');
+  $('pageSync').classList.toggle('hidden', t !== 'sync');
+  $('tabPlaylist').classList.toggle('on', t === 'playlist');
+  $('tabSync').classList.toggle('on', t === 'sync');
+  try { localStorage.setItem('obsConductorTab', t); } catch(e) {}
+  if (t === 'sync') { loadSettings(); loadMasterInfo(); renderSlaveCard(); if (isSlave() && hasMaster()) loadRoots(); }
+}
+$('tabPlaylist').onclick = () => showTab('playlist');
+$('tabSync').onclick = () => showTab('sync');
+
+// ---------- OBS lists ----------
+let obsListsKey = null;
+async function loadObsLists(){
+  let sc = scenes, tr = trans;
+  try { sc = (await api('/api/scenes')).scenes || []; } catch(e) {}
+  try { tr = await api('/api/transitions'); } catch(e) {}
+  // videos that couldn't be read (OBS busy, scene just created): try again
+  for (const [scn, md] of Object.entries(media)) if (md && md.error) getMedia(scn).then(renderBadges);
+  const key = JSON.stringify([sc, tr.names, tr.fixed]);
+  if (key === obsListsKey) return;          // nothing new: don't disturb editing
+  obsListsKey = key; scenes = sc; trans = tr;
+  const keep = $('addScene').value;
+  fillSceneSelect($('addScene'), null);
+  if (scenes.includes(keep)) $('addScene').value = keep;
+  if (!dirty && !document.activeElement.closest('.item')) renderAll();
+}
+function fillSceneSelect(sel, current, withNone){
+  let opts = withNone ? '<option value="">(none)</option>' : '';
+  const list = scenes.slice();
+  if (current && !list.includes(current)) list.unshift(current);
+  for (const s of list) {
+    const missing = !scenes.includes(s);
+    opts += `<option value="${esc(s)}"${s === current ? ' selected' : ''}>${esc(s)}${missing ? '  (not in OBS)' : ''}</option>`;
+  }
+  sel.innerHTML = opts;
+}
+const isFixed = name => (trans.fixed || []).includes(name);
+
+// ---------- video durations ----------
+// One request per scene at a time, 3 scenes at once: a long playlist opening
+// must not flood OBS. A failed read is not kept: it is tried again later.
+const mediaPending = {};
+let mediaRunning = 0;
+const mediaQueue = [];
+function mediaSlot(fn){
+  return new Promise(res => {
+    const go = () => { mediaRunning++; fn().finally(() => { mediaRunning--; const n = mediaQueue.shift(); if (n) n(); }).then(res); };
+    if (mediaRunning < 3) go(); else mediaQueue.push(go);
+  });
+}
+function getMedia(scene, force){
+  if (!scene) return Promise.resolve(null);
+  if (!force && media[scene] && media[scene] !== 'loading' && !media[scene].error) return Promise.resolve(media[scene]);
+  if (mediaPending[scene]) return mediaPending[scene];
+  if (!media[scene] || media[scene].error) media[scene] = 'loading';
+  const p = mediaSlot(() => api('/api/scene_media?scene=' + encodeURIComponent(scene))
+    .then(j => (media[scene] = j))
+    .catch(e => (media[scene] = {duration: null, media: [], error: e.message})))
+    .finally(() => { delete mediaPending[scene]; });
+  return (mediaPending[scene] = p);
+}
+
+// ---------- playlist load / save ----------
+async function loadPlaylists(selectName){
+  const j = await api('/api/playlists');
+  const name = selectName || j.active;
+  $('plSelect').innerHTML = j.names.map(n => `<option${n === name ? ' selected' : ''}>${esc(n)}</option>`).join('');
+  await loadPlaylist(name);
+}
+async function loadPlaylist(name){
+  const j = await api('/api/playlist?name=' + encodeURIComponent(name));
+  plName = j.name; pl = j.playlist; plRev = j.rev; plFile = j.file || null; dirty = false;
+  renderAll();
+  pl.items.forEach(it => getMedia(it.scene).then(renderBadges));
+}
+function changed(structural){
+  dirty = true;
+  if (structural) renderItems(); else renderTotals();
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(save, 400);
+}
+async function save(){
+  if (!pl || isSlave()) return;
+  try {
+    const j = await api('/api/playlist', {body:{name: plName, playlist: pl}});
+    plRev = j.rev; dirty = false;
+    // keep ids the server may have assigned
+    if (j.playlist.items.length === pl.items.length)
+      j.playlist.items.forEach((it, i) => { pl.items[i].id = it.id; });
+  } catch(e) {
+    flashError('Save failed: ' + e.message);
+    // back to what the server has: otherwise this dock would stop following it
+    dirty = false; clearTimeout(saveTimer);
+    loadPlaylist(plName);
+  }
+}
+
+// ---------- rendering ----------
+function renderAll(){ renderOptions(); renderItems(); applyState(); }
+
+function renderOptions(){
+  if (!pl) return;
+  renderLoopEnd();
+}
+
+function renderItems(){
+  closeMenu();
+  const box = $('items');
+  const ro = isSlave();
+  const list = ro ? (masterPlaylist() || {items:[]}) : pl;
+  if (!list) return;
+  box.classList.toggle('ro', ro);
+  if (!list.items.length) {
+    box.innerHTML = `<div class="empty">${ro ? 'The master playlist is empty.' : 'Empty playlist - add a scene below.'}</div>`;
+    renderTotals(); return;
+  }
+  box.innerHTML = '';
+  // slave: one column per badge type, the same on every row
+  const anyTrans = ro && list.items.some(it => it.transition);
+  list.items.forEach((it, i) => {
+    const row = document.createElement('div');
+    row.className = 'item' + (it.enabled === false ? ' off' : '');
+    row.dataset.id = it.id;
+    const t = it.transition;
+    if (ro) {
+      row.innerHTML = `<div class="fill"></div>
+        <div class="l1"><span class="num">${i+1}</span><span class="grow sname">${esc(it.scene)}</span>
+          <span class="robadges"><span class="en${it.enabled !== false ? ' on' : ''}" title="Set on the master">${it.enabled !== false ? 'ACTIVE' : 'SKIPPED'}</span>
+          ${anyTrans ? `<span class="tslot">${t ? `<span class="tpair" title="Its own transition"><span class="tsum forced">${esc(String(t.name).toUpperCase())}</span>${!isFixed(t.name) && t.duration_ms > 0 ? `<span class="tsum forced">${fmtSec(t.duration_ms / 1000)}s</span>` : ''}</span>` : ''}</span>` : ''}
+          <span class="mono dim rodur">${fmtSec(durOf(list, it))}s</span></span></div>`;
+    } else {
+      // Two lines per cue. 1: handle, number, scene name (never cut, it wraps).
+      // 2: duration, video menu, transition menu, play from here, remove.
+      const missing = scenes.length && !scenes.includes(it.scene);
+      row.innerHTML = `<div class="fill"></div>
+        <div class="l1">
+          <span class="grip" title="Drag to reorder">${ICON.grip}</span>
+          <span class="num">${i+1}</span>
+          <button class="sname scene-btn${missing ? ' missing' : ''}" title="Change the scene">${esc(it.scene)}${missing ? ' <small>(not in OBS)</small>' : ''}</button>
+          <button class="en${it.enabled !== false ? ' on' : ''}" title="Click: play or skip this cue">${it.enabled !== false ? 'ACTIVE' : 'SKIPPED'}</button>
+        </div>
+        <div class="l2">
+          <button class="icon ghost rowbtn playfrom" title="Play from this cue">${ICON.play}</button>
+          <button class="durbtn mono" title="Scene duration"></button>
+          <button class="icon ghost vid novid" title="Videos of this scene: choose the one whose length is the duration">${ICON.film}</button>
+          <span class="tpair"><button class="tsum tname"></button><button class="tsum tdur"></button></span>
+          <span class="grow"></span>
+          <button class="icon ghost danger rowbtn del" title="Remove this cue">${ICON.trash}</button>
+        </div>`;
+      bindRow(row, it);
+      updateTransition(row, it);
+      updateDuration(row, it);
+      row.classList.toggle('off', it.enabled === false);
+    }
+    box.appendChild(row);
+  });
+  renderBadges(); renderTotals(); applyState();
+}
+
+const transLabel = t => t.name + (isFixed(t.name) || !t.duration_ms ? '' : ' ' + (t.duration_ms / 1000) + 's');
+
+/** Duration field: typed (white) or following the default duration (grey,
+ *  shown as the placeholder; emptying the field goes back to it). */
+function updateDuration(row, it){
+  const b = row.querySelector('.durbtn');
+  const def = it.duration == null;
+  b.textContent = fmtSec(def ? defDur() : it.duration) + 's';
+  b.classList.toggle('def', def);                // grey: the default duration
+  b.classList.toggle('video', !!it.video_ref);   // from a video of the scene
+  b.title = (def ? 'Default scene duration (Settings)'
+    : it.video_ref ? 'Length of the video "' + it.video_ref + '"' : 'Duration of its own') + '. Click to change.';
+}
+
+/** Duration field: usual durations, any typed one, or a video's length. */
+const SCENE_LENGTHS = [5, 10, 15, 20, 30, 45, 60];
+function durMenu(anchor, row, it){
+  const set = (d, ref) => { it.duration = d; it.video_ref = ref || null; updateDuration(row, it); changed(false); closeMenu(); };
+  const build = m => {
+    m.innerHTML = '';
+    menuHead(m, 'Scene duration');
+    menuItem(m, {label: 'Default', side: fmtSec(defDur()) + 's', checked: it.duration == null, onClick: () => set(null)});
+    for (const sec of SCENE_LENGTHS) menuItem(m, {label: sec + 's', checked: !it.video_ref && it.duration === sec, onClick: () => set(sec)});
+    const r = document.createElement('div');
+    r.className = 'mrow';
+    const own = it.duration != null && !it.video_ref && !SCENE_LENGTHS.includes(it.duration);
+    r.innerHTML = `<span>Custom</span><input type="number" class="mono" min="0.5" step="0.1" value="${own ? fmtSec(it.duration) : ''}" placeholder="${fmtSec(it.duration != null ? it.duration : defDur())}"><span class="unit">s</span>`;
+    const inp = r.querySelector('input');
+    inp.onchange = () => { const v = parseFloat(inp.value); if (v > 0) set(Math.round(Math.max(0.5, v) * 1000) / 1000); };
+    inp.onkeydown = e => { if (e.key === 'Enter') inp.blur(); };
+    m.appendChild(r);
+    // auto-detection: the length of a video of the scene
+    menuHead(m, 'Auto-detect');
+    const md = media[it.scene];
+    const vids = (md && md !== 'loading' && md.media) || [];
+    if (md === 'loading' || !md) menuItem(m, {label: 'Reading the videos...', disabled: true});
+    else if (md.error) menuItem(m, {label: 'Could not read the videos', disabled: true});
+    else if (!vids.length) menuItem(m, {label: 'No video in this scene', disabled: true});
+    else {
+      const best = longestVideo(md);
+      menuItem(m, {label: 'Longest video', side: best ? fmtSec(best.duration) + 's' : 'none usable',
+        disabled: !best, onClick: () => set(round2(best.duration), best.source)});
+      for (const v of vids) menuItem(m, {
+        label: v.source + (videoNote(v) ? ' (' + videoNote(v) + ')' : ''), cls: 'sub',
+        side: v.duration ? fmtSec(v.duration) + 's' : 'length unknown',
+        checked: it.video_ref === v.source, disabled: !v.duration,
+        onClick: () => set(round2(v.duration), v.source),
+      });
+    }
+    menuItem(m, {label: 'Read the lengths again', cls: 'sub', onClick: async () => { await getMedia(it.scene, true); if (menuEl === m) build(m); renderBadges(); }});
+  };
+  openMenu(anchor, build);
+  const m = menuEl;
+  if (!media[it.scene] || media[it.scene] === 'loading') getMedia(it.scene).then(() => { if (menuEl === m) build(m); });
+  setTimeout(() => { const i = m.querySelector('.mrow input'); if (i && menuEl === m) { i.focus(); i.select(); } }, 0);   // typing replaces
+}
+
+/** Transition badges of a row (name, length), updated in place (no redraw).
+ *  Grey: the default transition (Settings); blue: the cue's own. */
+function updateTransition(row, it){
+  const t = it.transition || pl.default_transition, own = !!it.transition;
+  const nm = row.querySelector('.tname'), du = row.querySelector('.tdur');
+  nm.textContent = String(t.name).toUpperCase();
+  nm.title = (own ? 'Its own transition' : 'Default transition (Settings)') + '. Click to change.';
+  const hasLen = !isFixed(t.name) && t.duration_ms > 0;
+  du.textContent = hasLen ? fmtSec(t.duration_ms / 1000) + 's' : '';
+  du.title = 'Length of the transition. Click to change.';
+  du.classList.toggle('hidden', !hasLen);
+  nm.classList.toggle('forced', own); du.classList.toggle('forced', own);
+}
+
+// ---------- pop-up menus (scene, video reference, transition) ----------
+let menuEl = null, menuAnchor = null;
+function closeMenu(){
+  if (!menuEl) return;
+  menuEl.remove(); menuEl = null;
+  document.removeEventListener('pointerdown', menuOutside, true);
+}
+function menuOutside(e){ if (menuEl && !menuEl.contains(e.target)) closeMenu(); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
+window.addEventListener('resize', closeMenu);
+function openMenu(anchor, build){
+  closeMenu();
+  menuAnchor = anchor;
+  const m = document.createElement('div');
+  m.className = 'menu';
+  menuEl = m;
+  build(m);
+  document.body.appendChild(m);
+  const r = anchor.getBoundingClientRect(), w = m.offsetWidth, h = m.offsetHeight;
+  let left = Math.min(r.left, innerWidth - w - 6), top = r.bottom + 4;
+  if (top + h > innerHeight - 6) top = Math.max(6, r.top - h - 4);
+  m.style.left = Math.max(6, left) + 'px'; m.style.top = top + 'px';
+  setTimeout(() => document.addEventListener('pointerdown', menuOutside, true), 0);
+}
+function menuItem(m, {label, side, checked, disabled, onClick, cls}){
+  const b = document.createElement('button');
+  b.className = 'mi' + (checked ? ' on' : '') + (cls ? ' ' + cls : '');
+  b.disabled = !!disabled;
+  b.innerHTML = `<span class="ck">${checked ? ICON.check : ''}</span><span class="ml">${esc(label)}</span>` +
+    (side ? `<span class="ms">${esc(side)}</span>` : '');
+  if (onClick) b.onclick = onClick;
+  m.appendChild(b);
+  return b;
+}
+function menuHead(m, text){
+  const d = document.createElement('div'); d.className = 'mh'; d.textContent = text; m.appendChild(d);
+}
+
+/** Scene picker: the full list of OBS scenes. */
+function sceneMenu(anchor, it){
+  openMenu(anchor, m => {
+    menuHead(m, 'Scene');
+    const list = scenes.length ? scenes : [it.scene];
+    for (const sc of list) menuItem(m, {label: sc, checked: sc === it.scene, onClick: async () => {
+      closeMenu();
+      if (sc === it.scene) return;
+      const hadVideo = !!it.video_ref;
+      it.scene = sc; it.video_ref = null;
+      const md = await getMedia(sc, true);
+      const best = longestVideo(md);
+      if (best) { it.duration = round2(best.duration); it.video_ref = best.source; }
+      else if (hadVideo) it.duration = null;    // the old scene's video no longer applies: default duration
+      changed(true);
+    }});
+  });
+}
+
+const round2 = v => Math.round(v * 100) / 100;
+/** The video that gives a new cue its duration: the longest one shown that
+ *  doesn't loop (a background loop has no end). null: default duration. */
+function longestVideo(md){
+  const ok = ((md && md.media) || []).filter(x => x.duration && !x.hidden && !x.loop);
+  return ok.length ? ok.reduce((a, b) => (b.duration > a.duration ? b : a)) : null;
+}
+const videoNote = v => [v.loop ? 'loop' : '', v.hidden ? 'hidden' : ''].filter(Boolean).join(', ');
+
+/** Video reference: the videos of the scene with their length; the one
+ *  picked gives the cue its duration. */
+function videoMenu(anchor, row, it){
+  const build = m => {
+    m.innerHTML = '';
+    menuHead(m, 'Duration from video');
+    const md = media[it.scene];
+    const list = (md && md !== 'loading' && md.media) || [];
+    if (md && md.error) menuItem(m, {label: 'Could not read the videos', disabled: true});
+    else if (!list.length) menuItem(m, {label: 'No video in this scene', disabled: true});
+    for (const v of list) {
+      const picked = it.video_ref ? it.video_ref === v.source
+                                  : !!v.duration && it.duration != null && Math.abs(v.duration - it.duration) < 0.05;
+      menuItem(m, {
+        label: v.source + (videoNote(v) ? ' (' + videoNote(v) + ')' : ''),
+        side: v.duration ? fmtSec(v.duration) + 's' : 'length unknown',
+        checked: picked, disabled: !v.duration,
+        onClick: () => {
+          it.duration = round2(v.duration); it.video_ref = v.source;
+          updateDuration(row, it);
+          changed(false); closeMenu();
+        },
+      });
+    }
+    menuItem(m, {label: 'Read the lengths again', cls: 'sub', onClick: async () => {
+      await getMedia(it.scene, true); build(m); renderBadges();
+    }});
+  };
+  openMenu(anchor, build);
+}
+
+/** Name badge: the default transition, or one of OBS's for this cue. */
+function transMenu(anchor, row, it){
+  openMenu(anchor, m => {
+    menuHead(m, 'Transition');
+    const dt = pl.default_transition, t = it.transition;
+    menuItem(m, {label: 'Default', side: transLabel(dt), checked: !t, onClick: () => {
+      it.transition = null; updateTransition(row, it); changed(false); closeMenu();
+    }});
+    const names = trans.names.length ? trans.names.slice() : [];
+    if (t && !names.includes(t.name)) names.push(t.name);
+    for (const n of names) menuItem(m, {label: n, side: isFixed(n) ? 'fixed length' : '', checked: !!t && t.name === n, onClick: () => {
+      it.transition = {name: n, duration_ms: (t && t.duration_ms) || dt.duration_ms || 500};
+      updateTransition(row, it); changed(false); closeMenu();
+    }});
+  });
+}
+
+/** Length badge: a few usual lengths, or any typed one (seconds). */
+const TRANS_LENGTHS = [0.25, 0.5, 0.75, 1, 1.5, 2, 3];
+function transLenMenu(anchor, row, it){
+  openMenu(anchor, m => {
+    menuHead(m, 'Transition length');
+    const dt = pl.default_transition, cur = it.transition || dt;
+    const set = ms => {
+      // a length of its own makes the transition the cue's own (same name)
+      it.transition = {name: cur.name, duration_ms: ms};
+      updateTransition(row, it); changed(false); closeMenu();
+    };
+    if (it.transition) menuItem(m, {label: 'Default', side: transLabel(dt), onClick: () => {
+      it.transition = null; updateTransition(row, it); changed(false); closeMenu();
+    }});
+    lengthItems(m, cur.duration_ms, set);
+  });
+}
+/** The usual lengths, then "Other" (any length, seconds). Playlist and Settings. */
+function lengthItems(m, curMs, set){
+  for (const sec of TRANS_LENGTHS) menuItem(m, {label: fmtSec(sec) + 's', checked: curMs === sec * 1000, onClick: () => set(Math.round(sec * 1000))});
+  const r = document.createElement('div');
+  r.className = 'mrow';
+  r.innerHTML = `<span>Other</span><input type="number" class="mono" min="0.05" max="20" step="0.05" value="${fmtSec(curMs / 1000)}"><span class="unit">s</span>`;
+  const inp = r.querySelector('input');
+  inp.onchange = () => { const v = parseFloat(inp.value); if (v > 0) set(Math.round(Math.min(20, v) * 1000)); };
+  inp.onkeydown = e => { if (e.key === 'Enter') inp.blur(); };
+  m.appendChild(r);
+}
+
+function bindRow(row, it){
+  row.querySelector('.en').onclick = e => {
+    it.enabled = it.enabled === false;
+    const b = e.currentTarget;
+    b.classList.toggle('on', it.enabled);
+    b.textContent = it.enabled ? 'ACTIVE' : 'SKIPPED';
+    row.classList.toggle('off', !it.enabled);
+    changed(false); renderTotals();
+  };
+  row.querySelector('.scene-btn').onclick = e => sceneMenu(e.currentTarget, it);
+  row.querySelector('.vid').onclick = e => videoMenu(e.currentTarget, row, it);
+  row.querySelector('.tname').onclick = e => transMenu(e.currentTarget, row, it);
+  row.querySelector('.tdur').onclick = e => transLenMenu(e.currentTarget, row, it);
+  row.querySelector('.durbtn').onclick = e => durMenu(e.currentTarget, row, it);
+  row.querySelector('.del').onclick = () => {
+    pl.items = pl.items.filter(x => x !== it);
+    changed(true);
+  };
+  row.querySelector('.playfrom').onclick = () => transport('play', pl.items.indexOf(it));
+  row.querySelector('.grip').addEventListener('pointerdown', e => { if (row.dataset.locked !== '1') startDrag(e, row); });
+}
+
+/** The video button shows only for scenes that have a video (grey). */
+function renderBadges(){
+  if (!pl || isSlave()) return;
+  for (const row of $('items').querySelectorAll('.item')) {
+    const it = pl.items.find(x => x.id === row.dataset.id);
+    const b = row.querySelector('.vid');
+    if (!it || !b) continue;
+    const md = media[it.scene];
+    const failed = md && md !== 'loading' && md.error;
+    const has = md && md !== 'loading' && md.media && md.media.length;
+    b.classList.toggle('novid', !has && !failed);
+    b.classList.toggle('unknown', !!failed);
+    if (failed) b.title = 'Could not read the videos: click to try again';
+    else if (has) b.title = 'Duration from a video\n' +
+      md.media.map(x => x.source + ': ' + (x.duration ? fmtSec(x.duration) + 's' : '?') + (videoNote(x) ? ' (' + videoNote(x) + ')' : '')).join('\n');
+  }
+}
+
+let totalInfo = {secs: 0, text: '0:00', count: 0};
+function renderTotals(){
+  const list = isSlave() ? (masterPlaylist() || {items: []}) : pl;
+  if (!list) return;
+  const on = list.items.filter(it => it.enabled !== false);   // disabled cues don't play
+  const tot = on.reduce((a, it) => a + (+durOf(list, it) || 0), 0);
+  totalInfo = {secs: tot, text: fmt(Math.round(tot)), count: on.length};   // whole seconds, like the time left
+  tickView();
+}
+
+// ---------- drag & drop (pointer based: reliable in OBS docks) ----------
+function startDrag(e, row){
+  // Listeners sit on the document, not on the row: the row is moved in
+  // the DOM while dragging, which would drop a pointer capture.
+  e.preventDefault();
+  const box = $('items');
+  row.classList.add('dragging');
+  let moved = false;
+  const onMove = ev => {
+    // the list was redrawn meanwhile (another dock saved): this row is gone
+    if (!row.isConnected) return;
+    moved = true;
+    const rows = [...box.querySelectorAll('.item')].filter(r => r !== row);
+    let before = null;
+    for (const r of rows) {
+      const rc = r.getBoundingClientRect();
+      if (ev.clientY < rc.top + rc.height / 2) { before = r; break; }
+    }
+    if (before) { if (row.nextSibling !== before) box.insertBefore(row, before); }
+    else if (box.lastElementChild !== row) box.appendChild(row);
+  };
+  const onUp = () => {
+    row.classList.remove('dragging');
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    document.removeEventListener('pointercancel', onUp);
+    if (!moved || !row.isConnected) return;
+    const order = [...new Set([...box.querySelectorAll('.item')].map(r => r.dataset.id))];
+    const byId = Object.fromEntries(pl.items.map(it => [it.id, it]));
+    const next = order.map(id => byId[id]).filter(Boolean);
+    if (next.map(x => x.id).join() !== pl.items.map(x => x.id).join()) { pl.items = next; changed(true); }
+  };
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+  document.addEventListener('pointercancel', onUp);
+}
+
+// ---------- options ----------
+
+// ---- Loop and End action (transport bar) ----
+function renderLoopEnd(){
+  if (!pl) return;
+  const sceneEnd = pl.end_action === 'scene' && pl.end_scene;
+  $('btnLoop').classList.toggle('on', !!pl.loop);
+  $('btnLoop').title = pl.loop ? 'Loop ON: after the last cue, the playlist starts again from the top'
+                               : 'Loop OFF: click to start again from the top after the last cue';
+  $('btnEnd').classList.toggle('on', !!sceneEnd);
+  $('btnEnd').classList.toggle('muted', !!pl.loop);
+  $('btnEnd').title = 'At the end: ' + (sceneEnd ? 'go to "' + pl.end_scene + '"' : 'stay on the last cue') +
+    (pl.loop ? '\n(not used while Loop is on)' : '');
+}
+$('btnLoop').onclick = () => {
+  if (!pl) return;
+  pl.loop = !pl.loop;
+  renderLoopEnd(); changed(false); tickView();
+};
+$('btnEnd').onclick = e => {
+  if (!pl) return;
+  openMenu(e.currentTarget, m => {
+    menuHead(m, 'At the end of the playlist');
+    if (pl.loop) { const d = document.createElement('div'); d.className = 'mnote'; d.textContent = 'Loop is on: this is used once Loop is turned off.'; m.appendChild(d); }
+    menuItem(m, {label: 'Stay on the last cue', checked: pl.end_action !== 'scene' || !pl.end_scene, onClick: () => {
+      pl.end_action = 'stop'; renderLoopEnd(); changed(false); closeMenu();
+    }});
+    menuHead(m, 'Go to a scene');
+    for (const sc of scenes) menuItem(m, {label: sc, checked: pl.end_action === 'scene' && pl.end_scene === sc, onClick: () => {
+      pl.end_action = 'scene'; pl.end_scene = sc; renderLoopEnd(); changed(false); closeMenu();
+    }});
+  });
+};
+
+// ---------- add ----------
+$('btnAdd').onclick = async () => {
+  const scene = $('addScene').value;
+  if (!scene || !pl) return;
+  const it = {id: Math.random().toString(16).slice(2, 10), scene, duration: null, transition: null, video_ref: null};
+  pl.items.push(it);
+  changed(true);
+  const best = longestVideo(await getMedia(scene, true));
+  if (best) { it.duration = round2(best.duration); it.video_ref = best.source; changed(true); }
+  else renderBadges();
+};
+
+// ---------- playlist management (inline, no browser dialogs) ----------
+$('plSelect').onchange = async e => {
+  const name = e.target.value;
+  try {
+    if (dirty) { clearTimeout(saveTimer); await save(); }
+    await api('/api/active_playlist', {body:{name}});
+    await loadPlaylist(name);
+  } catch(err) { flashError(err.message); $('plSelect').value = plName; }
+};
+function askName(kind){
+  pendingName = kind;
+  $('nameForm').classList.remove('hidden');
+  $('nameInput').value = kind === 'rename' ? plName : (kind === 'dup' ? plName + ' copy' : '');
+  $('nameInput').focus(); $('nameInput').select();
+}
+$('btnNew').onclick = () => askName('new');
+$('btnDup').onclick = () => askName('dup');
+$('btnRename').onclick = () => askName('rename');
+$('nameCancel').onclick = () => { $('nameForm').classList.add('hidden'); pendingName = null; };
+$('nameInput').onkeydown = e => { if (e.key === 'Enter') $('nameOk').click(); if (e.key === 'Escape') $('nameCancel').click(); };
+$('nameOk').onclick = async () => {
+  const name = $('nameInput').value.trim();
+  if (!name) return;
+  try {
+    if (dirty) { clearTimeout(saveTimer); await save(); }
+    let target;
+    if (pendingName === 'rename') target = (await api('/api/playlist/rename', {body:{old: plName, new: name}})).name;
+    else target = (await api('/api/playlist/create', {body:{name, copy_from: pendingName === 'dup' ? plName : null}})).name;
+    await api('/api/active_playlist', {body:{name: target}}).catch(e => flashError(e.message));
+    $('nameForm').classList.add('hidden'); pendingName = null;
+    await loadPlaylists(target);
+  } catch(e) { flashError(e.message); }
+};
+async function deletePlaylist(){
+  try { await api('/api/playlist?name=' + encodeURIComponent(plName), {method:'DELETE'}); await loadPlaylists(); }
+  catch(e) { flashError(e.message); }
+}
+
+// ---------- playlist files: save to / load from a .obsplaylist file ----------
+async function savePlaylistFile(saveAs){
+  try {
+    if (dirty) { clearTimeout(saveTimer); await save(); }
+    const j = await api('/api/playlist/export', {body:{name: plName, save_as: !!saveAs}});
+    if (j.fallback) { location.href = '/api/playlist/download?name=' + encodeURIComponent(plName); return; }
+    if (j.ok) { plFile = j.path; flashInfo('Saved: ' + j.path); }
+  } catch(e) { flashError(e.message); }
+}
+async function loadPlaylistFile(){
+  try {
+    const j = await api('/api/playlist/import', {body:{}});
+    if (j.fallback) { $('fileIn').value = ''; $('fileIn').click(); return; }
+    if (j.ok) await openImported(j.name);
+  } catch(e) { flashError(e.message); }
+}
+$('fileIn').onchange = async () => {
+  const f = $('fileIn').files[0];
+  if (!f) return;
+  try {
+    const j = await api('/api/playlist/import', {body:{content: await f.text(), filename: f.name}});
+    await openImported(j.name);
+  } catch(e) { flashError(e.message); }
+};
+async function openImported(name){
+  if (isPlayingNow()) { await loadPlaylists(); flashInfo('Loaded as "' + name + '" - pick it once playback is stopped'); return; }
+  await api('/api/active_playlist', {body:{name}});
+  await loadPlaylists(name);
+  flashInfo('Loaded as "' + name + '"');
+}
+const isPlayingNow = () => !!(S && S.player && S.player.state === 'playing');
+function flashInfo(msg){
+  const b = $('errBox'); b.textContent = msg; b.className = 'msg info'; b.dataset.src = '';
+  clearTimeout(flashError.t); flashError.t = setTimeout(() => { b.classList.add('hidden'); b.className = 'msg err hidden'; }, 5000);
+}
+
+$('btnPlMenu').onclick = e => {
+  const playing = isPlayingNow();
+  let confirmDel = false;
+  openMenu(e.currentTarget, m => {
+    menuHead(m, 'Playlist');
+    menuItem(m, {label: 'New playlist', onClick: () => { closeMenu(); askName('new'); }});
+    menuItem(m, {label: 'Duplicate', onClick: () => { closeMenu(); askName('dup'); }});
+    menuItem(m, {label: 'Rename', disabled: playing, onClick: () => { closeMenu(); askName('rename'); }});
+    const del = menuItem(m, {label: 'Delete', disabled: playing, cls: 'danger', onClick: () => {
+      if (!confirmDel) { confirmDel = true; del.querySelector('.ml').textContent = 'Click again to delete "' + plName + '"'; return; }
+      closeMenu(); deletePlaylist();
+    }});
+    const sep = document.createElement('div'); sep.className = 'msep'; m.appendChild(sep);
+    const fileName = plFile ? plFile.split(/[\\/]/).pop() : '';
+    const sv = menuItem(m, {label: 'Save', side: fileName, onClick: () => { closeMenu(); savePlaylistFile(false); }});
+    sv.title = plFile ? 'Save into ' + plFile : 'Choose where to save';
+    menuItem(m, {label: 'Save to...', onClick: () => { closeMenu(); savePlaylistFile(true); }});
+    menuItem(m, {label: 'Load...', onClick: () => { closeMenu(); loadPlaylistFile(); }});
+  });
+};
+
+// ---------- transport ----------
+async function transport(action, index){
+  try {
+    if (dirty) { clearTimeout(saveTimer); await save(); }
+    await api('/api/player/' + action, {body: action === 'play' ? {index: index || 0} : {}});
+    pollState();
+  } catch(e) { flashError(e.message); }
+}
+$('btnPlay').onclick = () => transport('play', 0);
+
+$('btnStop').onclick = () => transport('stop');
+
+// The cue on air can't be edited (scene, duration, video, transition,
+// ACTIVE / SKIPPED, move, remove): only "play from here" stays.
+function lockRow(r, on){
+  if ((r.dataset.locked === '1') === on || r.closest('.ro')) return;
+  r.dataset.locked = on ? '1' : '';
+  r.querySelectorAll('.scene-btn, .en, .durbtn, .vid, .tname, .tdur, .del').forEach(el => { el.disabled = on; });
+  r.querySelector('.grip').style.visibility = on ? 'hidden' : '';
+  r.title = on ? 'On air: can\'t be changed now' : '';
+  if (on && menuEl && menuAnchor && r.contains(menuAnchor)) closeMenu();
+}
+
+// ---------- live state ----------
+function masterState(){ return S && S.master && S.master.state; }
+function masterPlaylist(){ return S && S.master && S.master.playlist && S.master.playlist.playlist; }
+function viewPlayer(){
+  // returns {player, ageSec} of whoever drives the playlist shown
+  if (!S) return null;
+  const local = (performance.now() - stateAt) / 1000;
+  if (isSlave()) {
+    const ms = masterState();
+    // master lost and playing on alone: this PC's own clock
+    if (S.master_link && S.master_link.lost && S.backup) return {player: S.backup.player, age: local};
+    // master lost: its last state is stale, don't keep counting it down
+    if (!ms || (S.master_link && S.master_link.lost) || !(S.master && S.master.reachable)) return null;
+    return {player: ms.player, age: local + Math.max(0, S.server_time - (ms.fetched_at || S.server_time))};
+  }
+  return {player: S.player, age: local};
+}
+
+let lastStructKey = '';
+function applyState(){
+  if (!S) return;
+  // header
+  const obsOk = S.obs.connected;
+  $('obsDot').className = 'dot ' + (obsOk ? 'ok' : 'bad');
+  $('obsTxt').textContent = '';   // simulation: said in the dot's tooltip and in Settings
+  $('obsDot').title = $('obsTxt').title = S.simulated ? 'Simulated OBS' : (obsOk ? 'OBS connected' : 'OBS offline: ' + (S.obs.error || ''));
+  const role = S.role;
+  renderLock();
+  $('verFoot').textContent = 'OBS Conductor v' + S.version + (S.simulated ? ' · simulation' : '');
+  $('verFoot').title = '';
+  $('roleM').classList.toggle('on', role === 'master');
+  $('roleS').classList.toggle('on', role === 'slave');
+  renderBanner();
+
+  // what the Playlist tab shows: role choice / master finder / playlist
+  const choosing = !role;
+  const finding = role === 'slave' && (!hasMaster() || finder.open);
+  $('chooser').classList.toggle('hidden', !choosing);
+  $('finder').classList.toggle('hidden', !finding);
+  $('onair').classList.toggle('hidden', choosing || finding);
+  $('plCard').classList.toggle('hidden', choosing || finding);
+  $('btnFinderClose').classList.toggle('hidden', !hasMaster());
+  if (finding && !finder.result && !finder.scanning) scanNetwork();
+
+  const ro = isSlave();
+  $('transport').classList.toggle('hidden', ro);
+  $('plToolbar').classList.toggle('hidden', ro);
+  $('addBox').classList.toggle('hidden', ro);
+  $('slvStatus').classList.toggle('hidden', !(ro && hasMaster()));
+  $('onairLabel').classList.toggle('hidden', ro && hasMaster());
+  $('onair').classList.toggle('stack', ro && hasMaster());
+  // the padlock: end of the transport row (master) or of the slave's controls
+  const lockHome = ro ? $('slaveCtl') : $('transport').parentNode;
+  if ($('btnLock').parentNode !== lockHome) lockHome.appendChild($('btnLock'));
+  if (ro) {
+    const m = S.master || {};
+    const f = S.follow || {};
+    const ml = S.master_link || {};
+    const host = ml.name || ml.host || 'master';
+    const obsOkM = f.status === 'connected', appOk = !!m.reachable;
+    // STATUS: FOLLOWING MASTER (green) / FREE RUN (orange: switched off here)
+    // / DISCONNECTED (red: switched on, master not reached)
+    const free = !!ml.free_run, linked = !free && obsOkM;
+    const st = $('slvStatus');
+    st.textContent = free ? 'FREE RUN' : linked ? 'FOLLOWING MASTER' : 'DISCONNECTED';
+    st.className = 'slvstatus ' + (free ? 'free' : linked ? 'follow' : 'down');
+    st.title = free ? 'Free run: this PC does not follow the master (its OBS keeps its scene).'
+      : 'Master ' + host + (ml.host && ml.name ? ' (' + ml.host + ')' : '') +
+        '\nOBS: ' + (obsOkM ? 'following' : (f.error || 'connecting...')) +
+        '\nPlaylist: ' + (appOk ? 'shown' : (m.error || 'not reachable')) +
+        (f.last_scene ? '\nLast scene followed: ' + f.last_scene : '');
+    // switch: connected to the master (on) or not (off = free run)
+    $('swMaster').querySelector('.sw').classList.toggle('on', !free);
+    $('swMaster').setAttribute('aria-checked', String(!free));
+    $('swMaster').title = free ? 'Disconnected from the master (free run). Click: connect and follow it again.'
+                               : 'Connected to the master. Click: disconnect (free run, this PC keeps its scene).';
+    // one short line only when something is wrong (full text on hover)
+    const problem = !hasMaster() || free ? '' : !obsOkM ? (/password/i.test(f.error || '') ? 'Master refused the password' : 'Master not reachable')
+      : (!appOk ? 'Master playlist not reachable' : (f.error ? 'A scene could not be shown' : ''));
+    $('slaveInfo').textContent = problem ? '⚠ ' + problem : '';
+    $('slaveInfo').title = !obsOkM ? (f.error || '') : (!appOk ? (m.error || '') : (f.error || ''));
+    $('slaveInfo').classList.toggle('hidden', !problem);
+    const key = 'ro:' + JSON.stringify(masterPlaylist() || null);
+    if (key !== lastStructKey) { lastStructKey = key; renderItems(); }
+  } else {
+    $('slaveInfo').classList.add('hidden');
+    if (lastStructKey.startsWith('ro:')) { lastStructKey = ''; renderItems(); }
+    // default transition / duration changed elsewhere (another dock)
+    if (pl && S.playback && (JSON.stringify(pl.default_transition) !== JSON.stringify(S.playback.default_transition)
+                             || pl.default_duration !== S.playback.default_duration)) {
+      pl.default_transition = S.playback.default_transition; pl.default_duration = S.playback.default_duration;
+      renderItems();
+    }
+    // somebody else (another dock, a browser) edited the playlist
+    if (!dirty && pl && (S.active_playlist !== plName || (S.playlist_rev && plRev && S.playlist_rev !== plRev))) {
+      if (S.active_playlist !== plName) loadPlaylists(S.active_playlist); else loadPlaylist(plName);
+    }
+  }
+  // an error of the app (master or slave) stays until the next scene goes on
+  // air, or a click on it; the same error coming back later shows again
+  const eb = $('errBox');
+  if (!S.error) errDismissed = null;
+  if (S.error && S.error !== errDismissed) {
+    if (eb.dataset.src !== 'state' || eb.textContent !== S.error) {
+      eb.className = 'msg err'; eb.dataset.src = 'state'; eb.textContent = S.error; eb.title = 'Click to hide';
+    }
+  } else if (eb.dataset.src === 'state') { eb.className = 'msg err hidden'; eb.dataset.src = ''; eb.title = ''; }
+  if (!$('pageSync').classList.contains('hidden')) renderSlaveCard();
+  renderSceneSync();
+  renderUpdate();
+  renderTally();
+  tickView();
+}
+
+/** Slave: Sync (media, OBS settings, scenes): helpers for its status line. */
+/** Estimated time left of a copy: "45s", "3 min 20s", "23 min", "1h 05". */
+function fmtLeft(s){
+  if (s < 60) return Math.max(1, Math.round(s)) + 's';
+  if (s < 600) { const t = Math.round(s / 10) * 10, m = Math.floor(t / 60), r = t % 60; return m + ' min' + (r ? ' ' + r + 's' : ''); }
+  if (s < 3600) return Math.round(s / 60) + ' min';
+  const m = Math.round(s / 60); return Math.floor(m / 60) + 'h ' + String(m % 60).padStart(2, '0');
+}
+function fmtBytes(b){
+  if (!b) return '0 B';
+  const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0;
+  while (b >= 1000 && i < u.length - 1) { b /= 1000; i++; }
+  return (i ? b.toFixed(b < 10 ? 1 : 0) : b) + ' ' + u[i];
+}
+const listTip = (title, list) => list && list.length ? '\n\n' + title + ':\n' + list.slice(0, 12).join('\n') + (list.length > 12 ? '\n...' : '') : '';
+
+/** Slave: "Sync" (media, then scenes): button, progress, result. */
+let needKey = '';
+/** innerHTML only when it changes (keeps hover and clicks steady). */
+function setHtml(el, html){ if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; } }
+function renderSceneSync(){
+  const show = isSlave() && hasMaster();
+  $('syncBox').classList.toggle('hidden', !show);
+  if (!show) return;
+  const st = S.scene_sync || {};
+  const free = !!(S.master_link && S.master_link.free_run);
+  $('btnSyncScenes').disabled = !!st.running || !S.obs.connected || free;
+  $('btnSyncScenes').classList.toggle('on', !st.running && !free && !!S.obs.connected && !!(S.master && S.master.reachable));
+  $('btnSyncScenes').title = free ? 'Free run: no sync from the master (switch MASTER on to follow it again)'
+    : "Copy the master's media, OBS settings and scenes to this PC";
+  setHtml($('btnSyncScenes'), ICON.sync + '<span>SYNC</span>');
+  const auto = !!(S.master_link && S.master_link.auto_sync);
+  $('btnAuto').classList.toggle('on', auto);
+  setHtml($('btnAuto'), ICON.autosync + '<span>AUTO SYNC ' + (auto ? 'ON' : 'OFF') + '</span>');
+  $('btnAuto').title = (auto ? 'On: syncs by itself when the master changes. Click to turn off.'
+                             : 'Off. Click to sync by itself when the master changes.') + ' (OBS here reloads its scenes: short blank)';
+  $('btnSyncCancel').classList.toggle('hidden', !st.running);
+  const copying = st.running && (st.phase === 'copy' || st.phase === 'verify') && st.bytes_total;
+  $('syncBarBox').classList.toggle('hidden', !copying);
+  if (copying) $('syncBar').style.transform = `scaleX(${Math.min(1, st.bytes_done / st.bytes_total)})`;
+  let txt = '', tip = '', color = '';
+  if (st.running) {
+    if (copying) {
+      txt = `${Math.min(st.files_done + 1, st.files_total)}/${st.files_total} · ${fmtBytes(st.bytes_done)} / ${fmtBytes(st.bytes_total)}` +
+            (st.eta_s != null ? ` · ~${fmtLeft(st.eta_s)} left` : '') +
+            (st.speed ? ` · ${fmtBytes(st.speed)}/s` : '') + (st.phase === 'verify' ? ' · checking' : '');
+      tip = st.current || '';
+    } else txt = {media: 'Comparing the media...', obs: 'OBS settings...', fetch: 'Getting the scenes...', check: 'Checking...', load: 'Loading the scenes...'}[st.phase] || 'Working...';
+  } else if (st.phase === 'error') { txt = '⚠ ' + st.error; tip = st.error; color = 'var(--red)'; }
+  else if (st.phase === 'need_folders') { txt = '⚠ A folder is needed'; color = 'var(--orange)'; }
+  else if (st.phase === 'done') {
+    const when = new Date(st.finished_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+    const warn = [];
+    if (st.busy && st.busy.length) warn.push(st.busy.length + ' in use');
+    if (st.errors && st.errors.length) warn.push(st.errors.length + ' error' + (st.errors.length > 1 ? 's' : ''));
+    if (st.missing && st.missing.length) warn.push(st.missing.length + ' missing');
+    if (st.unknown_kinds && st.unknown_kinds.length) warn.push(st.unknown_kinds.length + ' plugin' + (st.unknown_kinds.length > 1 ? 's' : ''));
+    if (st.obs_error) warn.push('OBS settings');
+    if (st.obs_restart) warn.push('restart OBS');
+    const parts = [st.scenes_part !== false && 'scenes', st.media && 'media', st.obs !== false && 'OBS settings'].filter(Boolean);
+    txt = (st.auto ? 'Auto synced ' : 'Synced ') + when + (parts.length < 3 ? ' (' + parts.join(', ') + ')' : '') + (st.copied ? ' · ' + st.copied + ' copied' : '') +
+      (st.obs_changed && st.obs_changed.length ? ' · ' + st.obs_changed.length + ' OBS setting' + (st.obs_changed.length > 1 ? 's' : '') : '') + (warn.length ? ' · ⚠ ' + warn.join(', ') : '');
+    tip = (st.collection ? 'Scenes: ' + st.collection : '') +
+      (st.media ? `\nMedia: ${st.copied} copied, ${st.up_to_date} up to date, ${st.archived} archived` : '') +
+      (st.obs_changed && st.obs_changed.length ? '\nOBS settings: ' + st.obs_changed.join(', ') : '') +
+      (st.obs_restart ? '\nAudio settings: applied at the next OBS start' : '') +
+      (st.obs_error ? '\n' + st.obs_error : '') +
+      listTip('In use by OBS here: replaced at the next Sync', st.busy) + listTip('Errors', st.errors) +
+      listTip('Missing on this PC', st.missing) + listTip('Missing on the master', st.master_missing) +
+      listTip('Missing plugins', st.unknown_kinds);
+    color = warn.length ? 'var(--orange)' : '';
+  }
+  $('syncStatus').textContent = txt; $('syncStatus').title = tip; $('syncStatus').style.color = color;
+
+  // a master drive that doesn't exist here: where to put its media
+  const need = !st.running && st.phase === 'need_folders' ? (st.need_folders || []) : [];
+  const key = need.join('|');
+  if (key === needKey) return;
+  needKey = key;
+  const box = $('needFolders');
+  box.classList.toggle('hidden', !need.length);
+  box.innerHTML = need.length ? `<div class="needf"><div class="t">Folder for these media on this PC?</div>` +
+    need.map((r, i) => `<div class="r"><span class="from" title="${esc(r)}">${esc(r)}</span>
+      <button data-i="${i}" class="pick">Choose...</button></div>`).join('') + `</div>` : '';
+  box.querySelectorAll('.pick').forEach(btn => btn.onclick = () => chooseFolder(need[+btn.dataset.i], btn));
+}
+async function chooseFolder(from, btn){
+  try {
+    const j = await api('/api/slave/media_folder', {body: {from, choose: true}});
+    if (j.fallback) {
+      // no system dialog (simulation, browser, Linux without zenity): type it
+      const row = btn.parentElement;
+      row.innerHTML = `<span class="from">${esc(from)}</span><input placeholder="Folder on this PC"><button class="primary">OK</button>`;
+      const inp = row.querySelector('input');
+      inp.focus();
+      row.querySelector('button').onclick = async () => {
+        if (!inp.value.trim()) return;
+        await api('/api/slave/media_folder', {body: {from, to: inp.value.trim()}});
+        needKey = null; resumeSync();
+      };
+      return;
+    }
+    if (j.ok) { needKey = null; resumeSync(); }
+  } catch(e) { flashError(e.message); }
+}
+// what the last Sync copied (kept on this PC: the dock opens with it)
+let syncParts = {scenes: true, media: true, obs: true};
+try { const v = JSON.parse(localStorage.getItem('obsc.syncParts') || 'null'); if (v) syncParts = {...syncParts, ...v}; } catch(_) {}
+function chooseSyncParts(){
+  return new Promise(resolve => {
+    const parts = {...syncParts};
+    const rows = [...$('syncModal').querySelectorAll('.swrow')];
+    const draw = () => {
+      const all = parts.scenes && parts.media && parts.obs;
+      rows.forEach(r => r.querySelector('.sw').classList.toggle('on', r.dataset.k === 'all' ? all : !!parts[r.dataset.k]));
+      $('syncOk').disabled = !(parts.scenes || parts.media || parts.obs);
+    };
+    rows.forEach(r => r.onclick = () => {
+      const k = r.dataset.k;
+      if (k === 'all') { const on = !(parts.scenes && parts.media && parts.obs); parts.scenes = parts.media = parts.obs = on; }
+      else parts[k] = !parts[k];
+      draw();
+    });
+    draw();
+    $('syncModal').classList.remove('hidden');
+    const done = v => { $('syncModal').classList.add('hidden'); $('syncOk').onclick = $('syncNo').onclick = null; resolve(v); };
+    $('syncOk').onclick = () => done(parts);
+    $('syncNo').onclick = () => done(null);
+  });
+}
+/** A folder was chosen: the Sync that stopped goes on, with its own parts. */
+async function resumeSync(){
+  const st = (S && S.scene_sync) || {};
+  const parts = st.auto ? {scenes: true, media: true, obs: true} : syncParts;
+  try {
+    const j = await api('/api/slave/sync', {body: parts});
+    if (j.started === false) flashInfo('A Sync is already running: the folder is used by it.');
+    pollState();
+  } catch(e) { flashError(e.message); }
+}
+async function startSync(ask){
+  if (ask) {
+    const parts = await chooseSyncParts();
+    if (!parts) return;
+    syncParts = parts;
+    try { localStorage.setItem('obsc.syncParts', JSON.stringify(parts)); } catch(_) {}
+  }
+  try { await api('/api/slave/sync', {body: syncParts}); pollState(); } catch(e) { flashError(e.message); }
+}
+$('btnSyncScenes').onclick = () => startSync(true);
+$('btnAuto').onclick = () => api('/api/slave/auto_sync', {body: {on: !$('btnAuto').classList.contains('on')}}).then(pollState).catch(e => flashError(e.message));
+$('btnSyncCancel').onclick = () => api('/api/slave/sync_cancel', {body: {}}).catch(e => flashError(e.message));
+
+/** Slave: master and this PC on different versions; "Update" from the master. */
+function renderUpdate(){
+  const u = isSlave() && hasMaster() && S.update;
+  const j = (u && u.job) || {};
+  const working = ['download', 'verify', 'launch', 'installing'].includes(j.phase);
+  const show = !!u && !!u.master && (u.master !== u.local || working || j.phase === 'error' || j.phase === 'done');
+  $('updBox').classList.toggle('hidden', !show);
+  if (!show) return;
+  let txt = `Master v${u.master} · this PC v${u.local}`, tip = '', color = 'var(--orange)';
+  if (j.phase === 'download') {
+    txt = `Downloading v${j.version} · ${fmtBytes(j.done)} / ${fmtBytes(j.total)}`; color = '';
+  } else if (j.phase === 'verify') { txt = 'Checking the file...'; color = ''; }
+  else if (j.phase === 'launch') { txt = 'Windows asks for the OK on this PC'; color = ''; }
+  else if (j.phase === 'installing') { txt = 'Installing... back in a moment'; color = ''; }
+  else if (j.phase === 'done' && j.simulated) { txt = `Simulation: v${j.version} not installed`; color = ''; }
+  else if (j.phase === 'error') { txt = '⚠ ' + j.error; tip = j.error; color = 'var(--red)'; }
+  else if (u.older) { txt = `Master v${u.master} is older · update it`; tip = `This PC: v${u.local}. Install v${u.local} on the master.`; }
+  else if (u.newer && u.unsealed) { txt = '⚠ The master\'s installer can\'t be checked'; tip = 'Wrong password? Link the master again (Settings > Master > Find another master).'; color = 'var(--red)'; }
+  else if (u.newer && !u.available) {
+    txt += ' · install by hand';
+    tip = u.manual ? `Download v${u.master} for this system from ${RELEASES} and install it.`
+        : u.other_os ? `The master runs on another system: its installer doesn't fit this PC. Download v${u.master} from ${RELEASES}.`
+        : `The master has no copy of its installer (installed before 1.3.0). Install v${u.master} on this PC by hand.`;
+  }
+  $('updTxt').textContent = txt; $('updTxt').title = tip; $('updTxt').style.color = color;
+  $('btnUpdate').classList.toggle('hidden', !u.available || working);
+  $('btnUpdate').textContent = 'Update to v' + u.master;
+  $('btnUpdCancel').classList.toggle('hidden', j.phase !== 'download');
+  $('updBarBox').classList.toggle('hidden', j.phase !== 'download' || !j.total);
+  if (j.phase === 'download' && j.total) $('updBar').style.transform = `scaleX(${Math.min(1, j.done / j.total)})`;
+}
+$('btnUpdate').onclick = async () => {
+  const v = S.update && S.update.master;
+  if (!await confirmBox(`Update to v${v}?`, 'Windows asks for the OK on this PC. The app restarts, OBS stays open. No scene change for a few seconds.', 'Update', 'primary')) return;
+  try { await api('/api/slave/update', {body: {}}); pollState(); } catch(e) { flashError(e.message); }
+};
+$('btnUpdCancel').onclick = () => api('/api/slave/update_cancel', {body: {}}).catch(e => flashError(e.message));
+
+/** OBS on this PC not reachable: say why, and what to do in OBS. */
+let bannerKey = '';
+function renderBanner(){
+  const ws = S.obs.connected ? 'ok' : (S.obs.ws || 'unknown');
+  const b = $('wsBanner');
+  if (ws + '|' + S.role === bannerKey) return;
+  bannerKey = ws + '|' + S.role;
+  b.className = 'banner' + (ws === 'auth' || ws === 'unreachable' ? ' err' : '');
+  if (ws === 'off') {
+    b.innerHTML = `<div class="t">${ICON.flag}OBS WebSocket is off</div>
+      <ol><li>OBS &rsaquo; <b>Tools &rsaquo; WebSocket Server Settings</b></li>
+      <li>Tick <b>Enable WebSocket server</b> &rsaquo; <b>OK</b></li></ol>
+      <div class="foot"><span class="spin"></span>Connects by itself once it's on.</div>`;
+  } else if (ws === 'auth') {
+    b.innerHTML = `<div class="t">${ICON.flag}OBS refused the connection</div>
+      <p>Wrong password: restart OBS.</p>`;
+  } else if (ws === 'closed') {
+    b.innerHTML = `<div class="t">${ICON.flag}OBS is not running</div>`;
+  } else if (ws === 'unreachable' || ws === 'unknown') {
+    b.innerHTML = `<div class="t" title="${esc(S.obs.error || '')}">${ICON.flag}Not connected to OBS</div>
+      <div class="foot"><span class="spin"></span>Retrying...</div>`;
+  }
+  b.classList.toggle('hidden', ws === 'ok');
+}
+
+// Smooth countdown: the end of the cue on air is kept in this page's own
+// clock, and only moved when a new state says it's off by more than 0.15 s
+// (each poll arrives a few ms late: following it blindly makes the bar jerk).
+const clock = {id: null, end: 0, plEnd: 0};
+const nowS = () => performance.now() / 1000;
+function smoothedTimes(p, age){
+  const t = nowS();
+  const end = t + (p.remaining - age), plEnd = p.playlist_remaining != null ? t + (p.playlist_remaining - age) : null;
+  if (clock.id !== p.item_id || Math.abs(end - clock.end) > 0.15) { clock.id = p.item_id; clock.end = end; }
+  if (plEnd == null) clock.plEnd = null;
+  else if (clock.plEnd == null || Math.abs(plEnd - clock.plEnd) > 0.15) clock.plEnd = plEnd;
+  return {rem: Math.max(0, clock.end - t), plRem: clock.plEnd == null ? null : Math.max(0, clock.plEnd - t)};
+}
+
+// Bars: redrawn on every screen frame (transform: no layout work)
+let barFrac = 0, barRow = null;
+function animateBars(){
+  const v = viewPlayer(), p = v && v.player;
+  let frac = 0;
+  if (p && p.state === 'playing' && p.duration && clock.id === p.item_id) frac = 1 - Math.max(0, clock.end - nowS()) / p.duration;
+  frac = Math.min(1, Math.max(0, frac));
+  $('onairBar').style.transform = `scaleX(${frac})`;
+  if (barRow && barRow.isConnected) barRow.style.transform = `scaleX(${frac})`;
+  requestAnimationFrame(animateBars);
+}
+
+const cuesText = () => totalInfo.count + ' cue' + (totalInfo.count === 1 ? '' : 's');
+function tickView(){
+  const v = viewPlayer();
+  const p = v && v.player;
+  const playing = p && p.state === 'playing';
+  const lbl = $('onairLabel');
+  const lost = isSlave() && S.master_link && S.master_link.lost;
+  // master: RUNNING / IDLE; slave: FOLLOW MASTER (master playing) / IDLE
+  // slave whose master app doesn't answer while its OBS is still followed:
+  // still following live (scene by scene), only the playlist is unknown
+  const blind = isSlave() && !lost && hasMaster() && S.follow && S.follow.status === 'connected' && !(S.master && S.master.reachable);
+  lbl.textContent = lost ? 'MASTER LOST' : (playing || blind) ? (isSlave() ? 'FOLLOW MASTER' : 'RUNNING') : 'IDLE';
+  lbl.classList.toggle('run', (!!playing || blind) && !lost);
+  lbl.classList.toggle('lost', !!lost);
+  let rem = null, frac = 0;
+  if (playing) {
+    const tm = smoothedTimes(p, v.age);
+    rem = tm.rem;
+    frac = p.duration ? 1 - rem / p.duration : 0;
+    $('onairScene').textContent = p.scene || '-';
+    $('onairRemain').textContent = '-' + fmt(rem, true);
+    $('onairNext').textContent = (p.next_scene ? 'Next: ' + p.next_scene : 'Last cue') + (lost ? ' · playing alone' : '');
+    const plLeft = tm.plRem != null ? '-' + fmt(tm.plRem) : '';
+    const plNm = isSlave() && masterState() ? masterState().active_playlist : '';
+    $('plRemaining').textContent = ((plNm ? plNm + ' · ' : '') + plLeft + ' / ' + totalInfo.text + ' · ' + cuesText()).toUpperCase();
+    $('plRemaining').title = 'Time left in the playlist / total length (' + totalInfo.count + ' cues)';
+  } else if (blind) {
+    const ms = masterState();
+    $('onairScene').textContent = S.follow.last_scene || (ms && ms.player && ms.player.scene) || '-';
+    $('onairRemain').textContent = '--:--';
+    $('onairNext').textContent = 'Following the scenes · playlist not reachable';
+    $('plRemaining').textContent = '';
+    $('plRemaining').title = '';
+  } else {
+    $('onairScene').textContent = lost && S.master_link.fallback_scene ? S.master_link.fallback_scene : '-';
+    $('onairRemain').textContent = '--:--';
+    $('onairNext').textContent = lost ? (S.master_link.fallback_scene ? 'Fallback scene' : 'Staying on the scene') : '';
+    $('plRemaining').textContent = ('Total ' + totalInfo.text + ' · ' + cuesText()).toUpperCase();
+    $('plRemaining').title = '';
+  }
+
+  $('plRemaining').classList.toggle('hidden', !$('plRemaining').textContent);
+  $('btnStop').disabled = !playing;
+  $('plSelect').disabled = !!playing;
+  $('btnRename').disabled = !!playing;
+  $('btnDelete').disabled = !!playing;
+
+  // highlight rows
+  const rows = $('items').querySelectorAll('.item');
+  let onIdx = -1;
+  barRow = null;
+  rows.forEach((r, i) => {
+    const on = playing && p.item_id === r.dataset.id;
+    if (on) { onIdx = i; barRow = r.querySelector('.fill'); }
+    r.classList.toggle('onair', !!on);
+    if (!on) r.querySelector('.fill').style.transform = 'scaleX(0)';
+    lockRow(r, !!on);
+  });
+  // the next cue to air: first enabled one after the cue on air
+  let nextIdx = -1;
+  if (playing && onIdx >= 0) for (let i = onIdx + 1; i < rows.length; i++) if (!rows[i].classList.contains('off')) { nextIdx = i; break; }
+  rows.forEach((r, i) => r.classList.toggle('next', i === nextIdx));
+}
+
+let failures = 0, bootVersion = null, updating = false;
+async function pollState(){
+  try {
+    S = await api('/api/state');
+    stateAt = performance.now();
+    // the app was stopped and is back (maybe a new version): start afresh
+    if (failures >= 3 || (bootVersion && S.version !== bootVersion)) { location.reload(); return; }
+    bootVersion = bootVersion || S.version;
+    const ph = S.update && S.update.job && S.update.job.phase;
+    updating = ph === 'launch' || ph === 'installing';
+    failures = 0;
+    $('down').classList.add('hidden');
+    applyState();
+  } catch(e) {
+    if (++failures >= 3) {
+      closeMenu(); $('modal').classList.add('hidden'); $('down').classList.remove('hidden');
+      $('downT').textContent = updating ? 'Updating OBS Conductor' : 'OBS Conductor is not running';
+      $('downP').innerHTML = updating ? 'Back in a moment.' : 'Start it: <b>' + startHint() + '</b>.';
+    }
+    $('obsDot').className = 'dot bad';
+  }
+}
+
+// ---------- master / slave ----------
+/** kind: 'danger' (red: stop, quit), 'primary' (green: go), 'warn' (orange: a decision) */
+function confirmBox(title, text, okLabel, kind = 'warn'){
+  return new Promise(resolve => {
+    $('modalT').textContent = title; $('modalP').textContent = text; $('modalOk').textContent = okLabel;
+    $('modalOk').className = {danger: 'danger', primary: 'primary', warn: 'warnbtn'}[kind] || 'warnbtn';
+    $('modal').classList.remove('hidden');
+    const done = v => { $('modal').classList.add('hidden'); $('modalOk').onclick = $('modalNo').onclick = null; resolve(v); };
+    $('modalOk').onclick = () => done(true);
+    $('modalNo').onclick = () => done(false);
+  });
+}
+async function setRole(role){
+  try {
+    if (dirty) { clearTimeout(saveTimer); await save(); }
+    await api('/api/role', {body: {role}});
+    finder.open = false;
+    await pollState();
+    if (role === 'master') { lastStructKey = ''; await loadPlaylists().catch(() => {}); }
+  } catch(e) { flashError(e.message); }
+}
+async function askRole(role){
+  if (!S || S.role === role) return;
+  if (S.role) {
+    const ok = role === 'slave'
+      ? await confirmBox('Switch to SLAVE?', (isPlayingNow() ? 'Playback stops. ' : '') + 'This PC will follow a master.', 'Switch')
+      : await confirmBox('Switch to MASTER?', 'This PC stops following the master.', 'Switch');
+    if (!ok) return;
+  }
+  setRole(role);
+}
+$('roleM').onclick = () => askRole('master');
+$('roleS').onclick = () => askRole('slave');
+$('chooseM').onclick = () => setRole('master');
+$('chooseS').onclick = () => setRole('slave');
+
+// ---------- slave: find the master on the network ----------
+const finder = {open: false, scanning: false, result: null, sel: null, error: '', busy: false};
+async function scanNetwork(){
+  finder.scanning = true; finder.error = ''; renderFinder();
+  try { finder.result = await api('/api/slave/scan'); }
+  catch(e) { finder.result = {found: [], networks: [], error: e.message}; }
+  finder.scanning = false;
+  // a single master found: pre-select it
+  const masters = (finder.result.found || []).filter(f => f.obs && f.app && f.app.role === 'master');
+  if (!finder.sel && masters.length === 1) finder.sel = masters[0].host;
+  renderFinder();
+}
+function openFinder(){
+  finder.open = true; finder.result = null; finder.sel = null;
+  showTab('playlist'); applyState();
+}
+$('btnRescan').onclick = scanNetwork;
+$('btnFinderClose').onclick = () => { finder.open = false; applyState(); };
+$('swMaster').onclick = () => {
+  const free = !!(S && S.master_link && S.master_link.free_run);
+  api('/api/slave/free_run', {body: {on: !free}}).then(pollState).catch(e => flashError(e.message));
+};
+$('btnChangeMaster').onclick = openFinder;
+$('lnkManual').onclick = () => { $('manualBox').classList.toggle('hidden'); $('manHost').focus(); };
+
+function renderFinder(){
+  const r = finder.result;
+  const nets = r && r.networks && r.networks.length ? r.networks.join(', ') : 'this network';
+  $('finderStatus').innerHTML = finder.scanning
+    ? `<span class="row"><span class="spin"></span>Looking for OBS on ${esc(nets)}...</span>`
+    : r && r.error ? '⚠ ' + esc(r.error)
+    : r ? `OBS with WebSocket on, network ${esc(nets)} · ${r.found.length} found` : '';
+  const box = $('foundList');
+  if (finder.scanning || !r) { box.innerHTML = ''; return; }
+  if (!r.found.length) {
+    box.innerHTML = `<div class="finder-note">No OBS found. On the master: OBS open, WebSocket on, same network.</div>`;
+    return;
+  }
+  box.innerHTML = '';
+  for (const f of r.found) {
+    const d = document.createElement('div');
+    const usable = !!f.obs;
+    d.className = 'fr' + (finder.sel === f.host ? ' sel' : '') + (usable ? '' : ' dis');
+    const tag = f.app ? `<span class="tag${f.app.role === 'master' ? '' : ' g'}">OBS CONDUCTOR ${esc((f.app.role || '').toUpperCase() || 'APP')}</span>`
+                      : '<span class="tag g">OBS ONLY</span>';
+    const detail = usable ? `${esc(f.host)} · port ${f.obs.port}` : `${esc(f.host)} · OBS WebSocket off on that PC`;
+    d.innerHTML = `<div class="a"><span class="n">${esc(f.name || f.host)}</span>${tag}</div><div class="ip">${f.name ? detail : detail.replace(esc(f.host) + ' · ', '')}</div>`;
+    d.title = usable ? 'obs-websocket ' + (f.obs.version || '') : '';
+    if (usable && finder.sel === f.host) {
+      const pw = document.createElement('div');
+      pw.innerHTML = `<div class="pwrow"><input type="password" placeholder="Master's password"${f.obs.auth ? '' : ' disabled value=""'}><button class="primary">Connect</button></div>
+        <div class="ferr hidden"></div>
+        <div class="note">${f.obs.auth ? 'On the master: Settings > WebSocket server.' : 'No password needed.'}</div>`;
+      d.appendChild(pw);
+      const inp = pw.querySelector('input'), btn = pw.querySelector('button'), err = pw.querySelector('.ferr');
+      const go = () => connectMaster({host: f.host, port: f.obs.port, password: inp.value, name: f.name,
+                                      dashboard_port: (f.app && f.app.dashboard_port) || 8090}, btn, err);
+      btn.onclick = go;
+      inp.onkeydown = e => { if (e.key === 'Enter') go(); };
+      setTimeout(() => inp.focus(), 0);
+    } else if (usable) {
+      d.onclick = () => { finder.sel = f.host; renderFinder(); };
+    }
+    box.appendChild(d);
+  }
+}
+async function connectMaster(body, btn, err){
+  if (finder.busy) return;
+  finder.busy = true; btn.disabled = true; btn.textContent = 'Checking...';
+  err.classList.add('hidden');
+  try {
+    const j = await api('/api/slave/connect', {body});
+    if (!j.ok) { err.textContent = j.wrong_password ? 'Wrong password' : (j.error || 'Not reachable'); err.classList.remove('hidden'); return; }
+    finder.open = false; finder.result = null; finder.sel = null;
+    $('manualBox').classList.add('hidden');
+    await pollState();
+  } catch(e) { err.textContent = e.message; err.classList.remove('hidden'); }
+  finally { finder.busy = false; btn.disabled = false; btn.textContent = 'Connect'; }
+}
+$('manGo').onclick = () => connectMaster({host: $('manHost').value.trim(), port: parseInt($('manPort').value) || 4455,
+                                          password: $('manPass').value}, $('manGo'), $('manErr'));
+$('manPass').onkeydown = e => { if (e.key === 'Enter') $('manGo').click(); };
+
+// ---------- settings: master info for the slaves / the master followed ----------
+let masterInfo = null, showPass = false;
+async function loadMasterInfo(){
+  if (!S || S.role === 'slave') return;
+  try { masterInfo = await api('/api/master_info'); } catch(e) { return; }
+  const mi = masterInfo;
+  $('miIp').textContent = (mi.ips || []).join(' / ') || '-';
+  $('miPort').textContent = mi.port || '-';
+  const pass = $('miPass');
+  if (!mi.local) { pass.textContent = 'shown on the master PC only'; pass.className = 'v muted'; }
+  else if (!mi.auth) { pass.textContent = 'none (authentication off in OBS)'; pass.className = 'v muted'; }
+  else { pass.textContent = showPass ? mi.password : '•'.repeat(12); pass.className = 'v'; }
+  $('miEye').classList.toggle('hidden', !(mi.local && mi.auth));
+  $('miCopy').classList.toggle('hidden', !(mi.local && mi.auth));
+  $('miDot').className = 'dot ' + (mi.enabled === false ? 'warn' : (S.obs.connected ? 'ok' : 'bad'));
+  $('miNote').textContent = mi.enabled === false ? 'OBS WebSocket is off' : '';
+  $('miNote').style.color = mi.enabled === false ? 'var(--orange)' : '';
+}
+$('miEye').onclick = () => { showPass = !showPass; loadMasterInfo(); };
+$('miCopy').onclick = async () => {
+  if (!masterInfo || !masterInfo.password) return;
+  try { await navigator.clipboard.writeText(masterInfo.password); }
+  catch(e) {
+    const t = document.createElement('textarea'); t.value = masterInfo.password; document.body.appendChild(t);
+    t.select(); try { document.execCommand('copy'); } catch(_) {} t.remove();
+  }
+  flashInfo('Password copied');
+};
+function renderSlaveCard(){
+  if (!S) return;
+  const slave = S.role === 'slave', master = S.role === 'master';
+  $('secSlave').classList.toggle('hidden', !slave);
+  $('secFallback').classList.toggle('hidden', !slave);
+  $('secMedia').classList.toggle('hidden', !slave);
+  $('secPlayback').classList.toggle('hidden', !master);   // a slave plays what its master says
+  $('secMaster').classList.toggle('hidden', !master);
+  if (!slave) return;
+  const ml = S.master_link || {}, f = S.follow || {};
+  $('msName').textContent = ml.name || (ml.host ? '(unknown name)' : 'none yet');
+  $('msAddr').textContent = ml.host ? ml.host + ' · port ' + (ml.obs_port || 4455) + (S.update && S.update.master ? ' · v' + S.update.master : '') : '-';
+  const obsOk = f.status === 'connected', appOk = !!(S.master && S.master.reachable);
+  const ok = obsOk && appOk;            // the same rule as the link icon at the top
+  // CONNECTED (green) / DISCONNECTED (red) / NOT CONFIGURED (grey)
+  $('msBadge').textContent = !ml.host ? 'NOT CONFIGURED' : ok ? 'CONNECTED' : 'DISCONNECTED';
+  $('msBadge').className = 'stbadge' + (!ml.host ? '' : ok ? ' run' : ' lost');
+  const detail = !obsOk ? (f.error || '') : !appOk ? ((S.master && S.master.error) || '') : '';
+  $('msBadge').title = detail;
+  // the badge says the state; this line only gives the reason when it's down
+  $('msStatus').textContent = !ml.host || ok ? ''
+    : !obsOk ? (/password/i.test(f.error || '') ? 'The master refused the password.' : 'The master\'s OBS doesn\'t answer.')
+    : 'The master\'s app doesn\'t answer (scenes still followed).';
+  $('msStatus').title = detail;
+  $('msStatus').style.color = 'var(--red)';
+  $('msStatus').classList.toggle('hidden', !(ml.host && !ok));
+  $('btnChangeMaster').textContent = ml.host ? 'Find another master' : 'Find the master';
+  // Fallback: switch on = a scene of this PC; off = keeps playing the master's playlist
+  const fbScene = (ml.fallback_mode || 'scene') === 'scene';
+  $('fbSw').classList.toggle('on', fbScene);
+  $('fbNote').textContent = fbScene ? 'When the master is lost' : 'Off: keeps playing the master\'s playlist';
+  $('msFbSceneRow').classList.toggle('hidden', !fbScene);
+  const sel = $('msFallback'), cur = ml.fallback_scene || '';
+  const key = JSON.stringify([scenes, cur]);
+  if (sel.dataset.key !== key && document.activeElement !== sel) {
+    sel.dataset.key = key;
+    const list = scenes.slice(); if (cur && !list.includes(cur)) list.unshift(cur);
+    sel.innerHTML = '<option value="">Choose a scene...</option>' +
+      list.map(n => `<option value="${esc(n)}"${n === cur ? ' selected' : ''}>${esc(n)}${scenes.includes(n) ? '' : ' (not in OBS)'}</option>`).join('');
+  }
+}
+$('msFallback').onchange = () => api('/api/slave/fallback', {body: {scene: $('msFallback').value}})
+  .then(pollState).catch(e => flashError(e.message));
+$('fbSwRow').onclick = () => {
+  const mode = $('fbSw').classList.contains('on') ? 'continue' : 'scene';
+  $('fbSw').classList.toggle('on', mode === 'scene');            // at once, the state confirms
+  $('msFbSceneRow').classList.toggle('hidden', mode !== 'scene');
+  return api('/api/slave/fallback', {body: {mode}})
+  .then(pollState).catch(e => flashError(e.message));
+};
+
+// ---------- lock mode ----------
+function renderLock(){
+  const on = !!(S && S.locked);
+  document.body.classList.toggle('locked', on);
+  const b = $('btnLock');
+  b.classList.toggle('on', on);
+  b.innerHTML = on ? ICON.lock : ICON.unlock;
+  b.title = on ? 'Locked: click to unlock' : 'Lock: no changes, no play / stop';
+  if (on) closeMenu();
+}
+$('btnLock').onclick = async () => {
+  try {
+    if (!S.locked && dirty) { clearTimeout(saveTimer); await save(); }
+    await api('/api/lock', {body: {locked: !S.locked}});
+    await pollState();
+  } catch(e) { flashError(e.message); }
+};
+
+// ---------- slave: where the master's media go on this PC ----------
+let mediaMode = null;   // 'same' | 'custom' (Settings > Medias location)
+function showMediaMode(){
+  const same = mediaMode !== 'custom';
+  $('mdSw').classList.toggle('on', same);
+  $('mdNote').textContent = mediaMode == null ? '' : same ? 'The media go where the master has them'
+                                                      : 'Off (custom): a folder on this PC for each master folder';
+}
+$('mdSwRow').onclick = async () => {
+  const next = mediaMode === 'custom' ? 'same' : 'custom';
+  mediaMode = next; showMediaMode();
+  try { await api('/api/slave/media_mode', {body: {mode: next}}); } catch(e) { flashError(e.message); }
+  loadRoots();
+};
+async function loadRoots(){
+  const box = $('rootsList');
+  box.innerHTML = '<div class="status">Asking the master...</div>';
+  let j = {};
+  try { const r = await fetch('/api/slave/media_roots'); j = await r.json(); if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status); }
+  catch(e) {
+    if (j.mode) { mediaMode = j.mode; showMediaMode(); }
+    box.innerHTML = `<div class="status" title="${esc(e.message)}">Master not reachable</div>`; return;
+  }
+  mediaMode = j.mode || 'same'; showMediaMode();
+  const custom = mediaMode === 'custom';
+  if (!j.roots.length) { box.innerHTML = '<div class="status">No media in the master\'s scenes</div>'; return; }
+  box.innerHTML = '';
+  for (const r of j.roots) {
+    const d = document.createElement('div');
+    d.className = 'mroot';
+    const to = custom ? r.to : '';
+    const dest = to ? '→ ' + to : (r.missing_here ? '→ drive missing here' + (custom ? ': choose a folder' : ': switch to custom') : '→ same path');
+    d.innerHTML = `<div class="w"><div class="f" title="${esc(r.root)}">${esc(r.root)}</div>
+        <div class="d${to ? ' forced' : (r.missing_here ? ' bad' : '')}" title="${esc(dest)}">${esc(dest)} · ${r.files} file${r.files > 1 ? 's' : ''}, ${fmtBytes(r.bytes)}</div></div>
+      ${custom ? '<button class="pick" title="Choose another folder on this PC">Choose...</button>' : ''}
+      ${to ? `<button class="icon ghost reset" title="Back to the same path as on the master">${ICON.x}</button>` : ''}`;
+    const pk = d.querySelector('.pick');
+    if (pk) pk.onclick = () => pickRoot(r.root, d);
+    const rs = d.querySelector('.reset');
+    if (rs) rs.onclick = () => api('/api/slave/media_folder', {body: {from: r.root, to: ''}}).then(loadRoots).catch(e => flashError(e.message));
+    box.appendChild(d);
+  }
+}
+async function pickRoot(from, row){
+  try {
+    const j = await api('/api/slave/media_folder', {body: {from, choose: true}});
+    if (j.fallback) {   // no system dialog (simulation, browser, Linux without zenity): type it
+      row.innerHTML = `<input placeholder="Folder on this PC"><button class="primary">OK</button>`;
+      const inp = row.querySelector('input'); inp.focus();
+      const ok = () => inp.value.trim() && api('/api/slave/media_folder', {body: {from, to: inp.value.trim()}}).then(loadRoots).catch(e => flashError(e.message));
+      row.querySelector('button').onclick = ok;
+      inp.onkeydown = e => { if (e.key === 'Enter') ok(); if (e.key === 'Escape') loadRoots(); };
+      return;
+    }
+    if (j.ok) loadRoots();
+  } catch(e) { flashError(e.message); }
+}
+$('btnRoots').onclick = loadRoots;
+
+// ---------- quit the app ----------
+$('btnQuit').onclick = async () => {
+  const what = isSlave() && hasMaster() ? 'This PC stops following the master. ' : (isPlayingNow() ? 'Playback stops. ' : '');
+  const ok = await confirmBox('Quit OBS Conductor?', what + 'Restart: ' + startHint().replace(/&rsaquo;/g, '>') + '.', 'Quit', 'danger');
+  if (!ok) return;
+  try {
+    if (dirty) { clearTimeout(saveTimer); await save(); }
+    await api('/api/app/quit', {body: {}});
+    failures = 3;
+    $('down').classList.remove('hidden');
+  } catch(e) { flashError(e.message === 'this PC only' ? 'Quit only from the dock in OBS, on this PC' : e.message); }
+};
+
+// ---------- start ----------
+(async function init(){
+  let tab = 'playlist';
+  try { tab = localStorage.getItem('obsConductorTab') || 'playlist'; } catch(e) {}
+  await pollState();
+  await loadObsLists();
+  try { await loadPlaylists(); } catch(e) { flashError('Cannot load playlists: ' + e.message); }
+  showTab(tab);
+  setInterval(pollState, 500);
+  setInterval(tickView, 100);
+  requestAnimationFrame(animateBars);
+  setInterval(() => { if (!$('pageSync').classList.contains('hidden')) loadMasterInfo(); }, 3000);
+  setInterval(loadObsLists, 15000);   // scenes/transitions added in OBS meanwhile
+})();
+</script>
+</body>
+</html>

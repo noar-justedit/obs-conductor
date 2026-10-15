@@ -1,0 +1,6 @@
+default_transition:
+  name: Fade
+  duration_ms: 500
+end_action: stop
+end_scene: ""
+items: []

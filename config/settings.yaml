@@ -1,0 +1,57 @@
+# OBS Conductor settings. Everything here is set from the dock (MASTER /
+# SLAVE buttons, Settings tab): editing this file by hand is rarely needed.
+
+# === Role of this PC ===
+# "master": plays its own playlists. "slave": follows a master.
+# Empty: the dock asks at first launch.
+role: ""
+
+# === OBS on this PC ===
+# Port and password are read from OBS's own settings at each connection:
+# nothing to type. Only used if OBS's settings can't be read.
+obs:
+  host: "localhost"
+  port: 4455
+  password: "YOUR_WEBSOCKET_PASSWORD"
+
+# === Companion app server (serves the OBS dock + its API) ===
+# The installer adds the dock to OBS (Docks > OBS Conductor).
+dashboard:
+  enabled: true
+  port: 8090
+  # No password: on 0.0.0.0 anyone on the same network can edit the
+  # playlists. That is required on a MASTER (its slaves read it). On a
+  # machine that never acts as a master, 127.0.0.1 is safer.
+  bind: "0.0.0.0"
+
+# === Playback ===
+playback:
+  # Rewind media sources when a scene goes on air. Leave false if your
+  # sources already have OBS's own "Restart playback when source becomes
+  # active" enabled, otherwise the media restarts twice.
+  restart_media_on_switch: false
+
+# === Defaults used by every cue that doesn't set its own ===
+default_transition:
+  name: "Fade"
+  duration_ms: 500
+default_duration: 10 # seconds
+
+# === Playlist shown and played by the dock ===
+# Name of the file (without .yaml) in config/playlists/.
+active_playlist: "default"
+
+# === Slave: the master it follows (set by "Find the master" in the dock) ===
+slave:
+  enabled: false
+  master_host: ""
+  master_name: ""
+  master_obs_port: 4455
+  master_obs_password: ""
+  master_dashboard_port: 8090
+
+# === Tally (PixelHue Q8 / P20 / P80) ===
+# Set from the dock (Settings > Tally). Empty: no tally.
+tally:
+  host: ""      # IP of the switcher
+  input: ""     # its input this PC's OBS feeds (picked from the list in the dock)

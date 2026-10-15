@@ -1,0 +1,7 @@
+node_modules/
+dist/
+dist_installer/
+build/
+.DS_Store
+# your signing settings (build_mac.command): stay on your Mac
+scripts/signing.local

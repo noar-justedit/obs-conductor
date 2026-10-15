@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- OBS Conductor.app - @VERSION@ is replaced by build_mac.command (from package.json).
+     LSUIElement: the app has no window and no Dock icon: its interface is the
+     dock inside OBS, plus an icon in the menu bar (OBSConductorMenu, with
+     Quit). (Not LSBackgroundOnly: a menu bar icon needs LSUIElement.) -->
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>OBS Conductor</string>
+	<key>CFBundleDisplayName</key>
+	<string>OBS Conductor</string>
+	<key>CFBundleIdentifier</key>
+	<string>fr.justedit.obsconductor</string>
+	<key>CFBundleExecutable</key>
+	<string>OBSConductor</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>@VERSION@</string>
+	<key>CFBundleVersion</key>
+	<string>@VERSION@</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>11.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.video</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>just edit lab - GPL-3.0-or-later</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>OBS Conductor shows the Save / Open / Choose folder windows of macOS.</string>
+</dict>
+</plist>
