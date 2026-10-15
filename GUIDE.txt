@@ -215,18 +215,39 @@ Settings tab (everything is saved as soon as a field is left)
 
 -----------------------------------------------------------------
 
-TALLY (PixelHue Q8 / P20 / P80)
+TALLY (ATEM, Roland V-160HD, vMix, TriCaster, Barco E2 / Encore 3,
+Analog Way Aquilon / Ascender, PixelHue, Panasonic KAIROS)
 
 A badge centred at the top of the on-air card, semi-transparent and
 breathing: red ON AIR when this PC's OBS is on program on the switcher (and
 the whole panel is framed in red, breathing too), green PVW when it is in
 preview (no frame), nothing otherwise; under it, the name of this OBS's input on the switcher (a long
 name scrolls). Red NO TALLY: the switcher doesn't answer.
-Settings > Tally, on each PC: the switcher's address, then pick the input
-this OBS feeds in the list read from the switcher (refresh button next to
-it). "Test connection" connects to the switcher again and says, in green,
-how long it took to answer and how many inputs and screens it has (red:
-why it failed; reads only).
+Settings > Tally, on each PC:
+   Switcher      the model. "Scan" looks for switchers on this PC's network
+                 and lists them: a click fills the model and the address.
+                 To a machine it doesn't know yet, the scan sends nothing
+                 but a connection and, for some models, one read request.
+                 ATEM and Barco are not scanned: choose them in the list.
+                 Not found: choose the model, type its address.
+   Address       its IP; the port can stay empty (the model's usual one).
+   User / Password   only for the models that ask for one (Roland V-160HD:
+                 its 4-digit network password; Aquilon: the Web RCS
+                 password; TriCaster: the LivePanel login; KAIROS: the REST
+                 API login, user Kairos). The password stays on this PC.
+   Input of this OBS   pick it in the list read from the switcher (refresh
+                 button next to it); where each input is now is shown.
+"Test connection" connects to the switcher again and says, in green, its
+model, how long it took to answer and how many inputs it has (red: why it
+failed; reads only).
+OBS Conductor never sends a command to the switcher: it only reads.
+The tally is in BETA. It starts CUT each time the app starts: "Turn the
+tally on" in Settings > Tally. While it runs, a red STOP TALLY button at the top
+of the dock cuts it at once: OBS Conductor then sends nothing at all to any
+switcher (OBS and the master / slave links go on). STOP TALLY works even when the
+dock is locked.
+Not supported: Roland V-60HD / XS-62S (one network connection only),
+V-1200HD, older Barco Encore. Details per model: docs/TALLY-DEVICES.md.
 If one input is named like this PC (e.g. "OBS HALL 8" on the PC
 HALL8: spaces, dashes and capitals don't count), it is chosen by itself.
 Empty address: no tally. The multiviewer, a disabled screen or a screen

@@ -48,12 +48,16 @@ Projet de **Noar** (just edit lab). Ces règles s'appliquent quelle que soit l'I
 
 ## 6. Fichiers de suivi (à jour à chaque bump)
 - `README.md` : ce que fait l'app et comment la builder (en anglais, pour
-  GitHub), avec les captures de `docs/screenshots/` (à refaire quand
-  l'interface change).
+  GitHub), avec les captures de `docs/screenshots/`. **À chaque bump, les
+  captures sont refaites** (dock maître en direct, playlist, esclave,
+  réglages) pour qu'elles montrent la version livrée, et le README les cite.
 - `AGENTS.md` : ces règles. `CLAUDE.md` renvoie ici.
 - `ETAT_PROJET.md` : état, architecture, décisions et raisons, problèmes connus,
   prochaines étapes, emplacements de la version.
 - `CHANGELOG.md` : historique des versions.
+- `RELEASE_vX.Y.Z.md` (hors du ZIP, livré à côté) : les notes de la Release
+  GitHub à coller, en anglais, avec le tableau des fichiers à joindre
+  (`.exe`, `.dmg`, `.deb`, `.AppImage`). **À fournir à chaque bump.**
 
 ## 7. Publication sur GitHub : `scripts/push_github.command`
 - Noar décompresse le ZIP et double-clique ce script dans le dossier obtenu :
@@ -75,15 +79,23 @@ Projet de **Noar** (just edit lab). Ces règles s'appliquent quelle que soit l'I
 
 ## Spécifique à ce projet
 - **RÈGLE ABSOLUE : tally en LECTURE SEULE.** OBS Conductor n'envoie JAMAIS
-  de commande au switcher de tally (PixelHue Q8 / P20 / P80, et tout appareil
-  ajouté plus tard : Aquilon, E2, Encore 3...). Uniquement des lectures :
-  requêtes GET vers une liste fermée d'adresses de lecture (`READ_ONLY` dans
-  `src/tally.js`), aucun POST / PUT / DELETE, aucun envoi sur un WebSocket,
-  aucun TAKE, aucun changement de preset, d'input ou de layer. Demande
-  explicite de Noar, non négociable : un appareil de régie en direct ne doit
-  pas pouvoir être modifié par cette appli. Un test (`test/tally.test.js`)
-  vérifie que seules ces lectures partent. Tout nouvel appareil suit la même
-  règle, avec sa propre liste fermée et son test.
+  de commande à un switcher de tally (ATEM, Roland, vMix, TriCaster, Barco,
+  Analog Way, PixelHue, KAIROS, et tout appareil ajouté plus tard) : aucun
+  CUT / TAKE, aucun changement de source, de preset, d'input, de layer ou de
+  réglage. Demande explicite de Noar, non négociable : un appareil de régie
+  en direct ne doit pas pouvoir être modifié par cette appli.
+  Autorisé (choix de Noar, 2.2) : les lectures, et ce qui est nécessaire pour
+  lire sans rien changer : ouverture de session (ATEM), mot de passe / login
+  (Roland, Analog Way, KAIROS, TriCaster), abonnement aux changements.
+  Mise en œuvre : chaque driver (`src/tally/drivers/`) a sa liste fermée de
+  messages autorisés (`RULES`) et des exemples interdits (`FORBIDDEN`) ; tout
+  message passe par `src/tally/guard.js`, qui refuse le reste avant l'envoi.
+  `test/tally-drivers.test.js` le vérifie contre une fausse machine par
+  driver. Tout nouvel appareil suit la même règle, avec sa liste et son test
+  (`docs/TALLY-DEVICES.md`).
+  STOP TALLY (Noar, 2.2.1) : tant que le tally n'est pas approuvé, il démarre
+  coupé et un bouton STOP TALLY le coupe en un clic ; coupé, `guard.js` ne laisse
+  rien sortir. Ne jamais contourner ni affaiblir ce verrou.
 - Code de couleurs de Noar : VERT = marche / connecté / activé ; ROUGE = ne
   marche pas / déconnecté / désactivé / erreur ; ORANGE = action de
   l'utilisateur attendue / avertissement.

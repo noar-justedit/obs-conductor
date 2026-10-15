@@ -185,18 +185,27 @@ function startServer(app, port, bind) {
         if (!app.installer.file) return json(res, { error: 'no installer on the master' }, 404);
         return media.serve(req, res, app.installer.file);
       }
+      case '/api/tally/devices':
+        // Settings > Tally: the switcher models OBS Conductor can read
+        return json(res, { devices: require('./tally/index').catalog() });
       case '/api/tally/inputs':
-        // Settings > Tally: the switcher's inputs, to pick this OBS's one
+        // Settings > Tally: the switcher's inputs [{id, name}], to pick this OBS's one
         try {
-          const inputs = await app.tally.inputs();
+          const r = await app.tally.inputs();
           // the input named like this PC, preselected when none is chosen yet
-          return json(res, { inputs, states: app.tally.lastStates || {},
-                             suggest: require('./tally').suggestInput(inputs, os.hostname()), pc: os.hostname() });
+          return json(res, { ...r, suggest: require('./tally/index').suggestInput(r.inputs, os.hostname()), pc: os.hostname() });
         }
-        catch (e) { return json(res, { inputs: [], error: `PixelHue not reachable: ${e.message}` }, 502); }
+        catch (e) { return json(res, { inputs: [], error: `not reachable: ${e.message}` }, 502); }
+      case '/api/tally/scan':
+        // Settings > Tally > Scan: the switchers on this PC's network (reads
+        // only, on demand: the button), from this PC only
+        if (!isLocal(req)) return json(res, { error: 'this PC only' }, 403);
+        if (require('./tally/guard').isCut()) return json(res, { error: 'the tally is stopped: turn it on first' }, 409);
+        if (app.simulate) { await new Promise(r => setTimeout(r, 1200)); return json(res, { found: require('./tally/index').FAKE_SCAN }); }
+        return json(res, { found: await require('./tally/index').scan() });
       case '/api/tally/test':
         // Settings > Tally > Test connection: connects again from scratch and
-        // reads (never writes: tally.js only knows reading addresses)
+        // reads (never writes: every message goes through tally/guard.js)
         if (!isLocal(req)) return json(res, { error: 'this PC only' }, 403);
         return json(res, await app.tally.test());
       case '/api/tally/debug':
@@ -303,8 +312,10 @@ function startServer(app, port, bind) {
 
   async function post(url, body, req, res) {
     const p = url.pathname;
-    // lock mode: only unlocking (and quitting from the tray icon) is possible
-    if (store.locked() && p !== '/api/lock' && p !== '/api/app/quit') {
+    // lock mode: only unlocking (and quitting from the tray icon) is possible,
+    // and cutting the tally (STOP TALLY must always work)
+    const panicCut = p === '/api/tally/panic' && body && body.cut === true;
+    if (store.locked() && p !== '/api/lock' && p !== '/api/app/quit' && !panicCut) {
       return json(res, { error: 'locked - unlock first (padlock at the top)' }, 423);
     }
     const slave = store.role() === 'slave';
@@ -411,6 +422,10 @@ function startServer(app, port, bind) {
       case '/api/error/clear':
         app.lastError = null;
         return json(res, { ok: true });
+      case '/api/tally/panic':
+        // STOP TALLY (Noar): cut / turn on the whole tally. Cut: nothing is sent to
+        // any switcher any more (tally/guard.js); OBS and master / slave go on
+        return json(res, { ok: true, cut: app.tally.setCut(body.cut !== false) });
       case '/api/lock':
         store.setLocked(!!body.locked);
         app.log.info(body.locked ? 'Locked' : 'Unlocked');

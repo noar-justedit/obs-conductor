@@ -1,6 +1,6 @@
 # Récupérer l'état OnAir/OffAir d'un input sur Pixelhue Q8
 
-Fourni par Noar (oct. 2026). Utilisé par `src/tally.js`.
+Fourni par Noar (oct. 2026). Utilisé par `src/tally/drivers/pixelhue.js`.
 
 Guide pratique pour une app qui a juste besoin de savoir **si un input donné
 est ON AIR (PGM) ou pas** sur un Q8 / P20 / P80.
@@ -82,7 +82,7 @@ n'ont pas de `presetId`, donc aucun input n'était jamais vu ON AIR.
 
 Ce que fait le module Companion lui-même (`src/interfaces/Layer.ts`,
 `src/feedbacks.ts`, `src/interfaces/Screen.ts`) et ce que fait maintenant
-`src/tally.js` :
+`src/tally/drivers/pixelhue.js` :
 
 - `GET /unico/v1/layers/list-detail` : chaque layer a
   `layerIdObj.sceneType` (2 = PGM, 4 = PVW), `layerIdObj.attachScreenId`

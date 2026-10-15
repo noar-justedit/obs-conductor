@@ -66,19 +66,29 @@ class Tray {
   start() {
     if (process.env.OBSCONDUCTOR_NO_TRAY) return;
     const c = command({ port: this.port, logFile: this.logFile });
-    if (!c) return;
+    if (!c) {
+      // macOS, installed app, but no menu bar program next to Node.js: say so
+      if (process.platform === 'darwin' && process.env.OBSCONDUCTOR_PACKAGED === '1') this.log.warn('No menu bar icon: OBSConductorMenu is missing from the app (see the build: "Menu bar icon")');
+      return;
+    }
+    let errText = '';
     try {
-      this.child = spawn(c[0], c[1], { windowsHide: true, stdio: 'ignore' });
+      // its error messages (if it fails) go into the log
+      this.child = spawn(c[0], c[1], { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
     } catch (e) {
       this.log.warn(`No tray icon: ${e.message}`);
       return;
     }
+    if (this.child.stderr) this.child.stderr.on('data', d => { if (errText.length < 2000) errText += d; });
+    if (process.platform === 'darwin') this.log.info(`Menu bar icon started (${c[0]}, pid ${this.child.pid})`);
     this.child.on('error', e => this.log.warn(`No tray icon: ${e.message}`));
-    this.child.on('exit', code => {
+    this.child.on('exit', (code, signal) => {
       this.child = null;
       if (this.stopping) return;
-      if (++this.restarts > MAX_RESTARTS) { this.log.warn(`Tray icon stopped (code ${code}) - not restarted`); return; }
-      this.log.warn(`Tray icon stopped (code ${code}) - restarting it`);
+      const why = `code ${code}${signal ? ', ' + signal : ''}${errText.trim() ? ': ' + errText.trim().split('\n').slice(-3).join(' | ') : ''}`;
+      errText = '';
+      if (++this.restarts > MAX_RESTARTS) { this.log.warn(`Tray icon stopped (${why}) - not restarted`); return; }
+      this.log.warn(`Tray icon stopped (${why}) - restarting it`);
       setTimeout(() => this.start(), 5000);
     });
   }

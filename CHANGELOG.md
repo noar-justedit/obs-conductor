@@ -2,6 +2,63 @@
 
 Format : [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions X.Y.Z.
 
+## [2.2.1] — 2026-10-15
+
+### Added
+- **STOP TALLY** (the tally is in beta): the tally starts stopped each time
+  the app starts; Settings > Tally > "Turn the tally on". While it runs, a
+  red STOP TALLY button at the top of the dock stops it in one click, even
+  when the dock is locked. Stopped, OBS Conductor opens no connection and
+  sends not one byte to any switcher, and the open ones are closed at once
+  (`src/tally/guard.js`, tested). OBS and the master / slave links go on.
+- macOS: the log says when the menu bar icon starts, and why it stopped if
+  it does (its error messages).
+
+### Changed
+- Scan: to a machine not known yet it sends nothing but a TCP connection
+  and, for some models, ONE read request (GET). vMix, Roland and Ascender
+  are found by their greeting (nothing sent); TriCaster, Aquilon, PixelHue
+  and KAIROS by one GET. ATEM (a hello would open a session on any device)
+  and Barco (POST requests) are no longer scanned: choose them in the list.
+  KAIROS is found on its REST port (GET /inputs) instead of port 3005.
+
+### Fixed
+- Text centred in the MASTER / SLAVE switch, STOP TALLY, the ON AIR / PVW
+  badge and the slave status badge (small capitals sat about 1 px high).
+
+## [2.2.0] — 2026-10-15
+
+### Added
+- Tally from many switchers, not only PixelHue: Blackmagic ATEM, Roland
+  V-160HD, vMix, TriCaster / Viz Vectar, Barco E2 / S3 / EX / Encore 3,
+  Analog Way Aquilon (LivePremier) and Ascender (LiveCore), PixelHue Q8 /
+  P10 / P20 / P80, Panasonic KAIROS. Settings > Tally: choose the model, or
+  **Scan** the network (on demand only) and click the one found; address,
+  port, login when the model has one; the input of this OBS in the list read
+  from the switcher.
+- Architecture: OBS Conductor's own tally engine (`src/tally/index.js`), one
+  "translation" driver per family (`src/tally/drivers/`), protocols taken
+  from the Bitfocus Companion modules (MIT) and the makers' guides, no
+  Companion code copied. Adding a machine: `docs/TALLY-DEVICES.md`.
+
+### Security
+- Tally read-only guard (`src/tally/guard.js`): every message to a switcher
+  is checked against the driver's closed list of reads and refused
+  otherwise. Allowed (Noar's choice): reads, plus opening a session (ATEM),
+  a login (Roland, Analog Way, TriCaster, KAIROS), a subscription. Tested
+  against a fake machine per driver; no driver can open a connection itself.
+- The tally password never leaves this PC (the dock only sees
+  `has_password`). The switcher address must be an IP or a name.
+
+### Not supported
+- Roland V-60HD / XS-62S (one network connection only: would lock out
+  Companion), V-1200HD (no read command known), older Barco Encore (no tally
+  read). Recognised on the Roland port and refused without retrying.
+
+### Note
+- The new drivers are tested against fake machines built from the protocol
+  documents, not yet on real hardware (PixelHue: unchanged, field-tested).
+
 ## [2.1.2] — 2026-10-15
 
 ### Fixed

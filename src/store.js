@@ -226,16 +226,27 @@ class Store {
       playback: this.playbackConfig(),
       default_transition: this.defaultTransition(),
       default_duration: this.defaultDuration(),
-      tally: this.tallyConfig(),
+      tally: this.tallyPublic(),
     };
   }
 
-  /** Tally from a PixelHue switcher (Q8 / P20 / P80): its address, and the
-   *  name of its input that this PC's OBS feeds. Empty: no tally. */
+  /** Tally (tally/): the switcher model (driver id), its address, its
+   *  login when it has one, and its input that this PC's OBS feeds (id +
+   *  name). Empty: no tally. Before 2.2 only PixelHue existed: a config
+   *  without a model is a PixelHue one (input = its name). */
   tallyConfig() {
     const t = this.settings().tally || {};
-    return { host: String(t.host || '').trim(), input: String(t.input || '').trim(),
-             api_port: parseInt(t.api_port, 10) || null };
+    const host = String(t.host || '').trim();
+    return { device: String(t.device || (host ? 'pixelhue' : '')).trim(), host,
+             port: parseInt(t.port, 10) || null, api_port: parseInt(t.api_port, 10) || null,
+             user: String(t.user || ''), password: String(t.password || ''),
+             input: String(t.input || '').trim(), input_name: String(t.input_name || '').trim() };
+  }
+
+  /** The same, as shown to the dock: the password never leaves this PC. */
+  tallyPublic() {
+    const { password, api_port, ...t } = this.tallyConfig();
+    return { ...t, has_password: !!password };
   }
 
   /** The connection to OBS on this PC. Port and password come from OBS's own
@@ -271,8 +282,27 @@ class Store {
       this._set(['default_transition'], { name: String(b.default_transition.name), duration_ms: ms });
     }
     if (b.tally) {
-      if (b.tally.host != null) this._set(['tally', 'host'], String(b.tally.host).trim());
-      if (b.tally.input != null) this._set(['tally', 'input'], String(b.tally.input).trim());
+      const t = b.tally, cur = this.tallyConfig();
+      // another model: the input chosen for the old one means nothing now
+      if (t.device != null && String(t.device) !== cur.device) {
+        this._set(['tally', 'device'], String(t.device).trim());
+        this._set(['tally', 'input'], ''); this._set(['tally', 'input_name'], '');
+        this._set(['tally', 'port'], null);
+      }
+      // an address is a name or an IP, nothing else (it goes into URLs)
+      if (t.host != null) {
+        const h = String(t.host).trim();
+        if (h && !/^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$/.test(h)) throw new Error('switcher address: an IP or a name only');
+        this._set(['tally', 'host'], h);
+      }
+      if (t.port !== undefined) {
+        const n = parseInt(t.port, 10);
+        this._set(['tally', 'port'], n >= 1 && n <= 65535 ? n : null);
+      }
+      if (t.user != null) this._set(['tally', 'user'], String(t.user));
+      if (typeof t.password === 'string') this._set(['tally', 'password'], t.password);
+      if (t.input != null) this._set(['tally', 'input'], String(t.input).trim());
+      if (t.input_name != null) this._set(['tally', 'input_name'], String(t.input_name).trim());
     }
     if (b.default_duration != null) {
       const d = P.cleanDuration(b.default_duration);

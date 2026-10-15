@@ -68,7 +68,9 @@ header{position:sticky;top:0;z-index:5;background:var(--page);padding:8px 8px 6p
 .badge{font-size:9px;font-weight:700;letter-spacing:.1em;padding:3px 6px;border-radius:var(--r-badge);
   background:var(--card);color:var(--text3)}
 #obsTxt{font-size:9px;font-weight:700;letter-spacing:.1em;color:var(--text3)}
-.tabs{margin-left:auto;display:flex;gap:0;flex-shrink:0}
+.tabs{margin-left:auto;display:flex;gap:0;flex-shrink:0;align-items:center}
+/* STOP TALLY: red, one click away while the tally is on; no bigger than MASTER / SLAVE */
+button.panic{font-size:9px;font-weight:700;letter-spacing:.06em;text-indent:.06em;padding:4.2px 5px 1.8px;border-radius:5px;margin-right:6px;white-space:nowrap}
 button.tabbtn{background:transparent;padding:0;width:24px;height:28px;justify-content:center;border-radius:8px;color:var(--text3);flex-shrink:0}
 button.tabbtn.on{background:var(--card);color:var(--text)}
 
@@ -83,6 +85,7 @@ h3,.lbl{margin:0;font-size:10px;font-weight:700;letter-spacing:.14em;text-transf
   background:rgba(255,255,255,.07);color:var(--text3)}
 .onair-label.run,.stbadge.run{background:rgba(53,201,139,.15);color:var(--green)}
 .onair-label.lost,.stbadge.lost{background:rgba(242,85,90,.15);color:var(--red)}
+.stbadge.warn{background:rgba(242,160,61,.15);color:var(--orange)}
 .onair-scene{font-size:17px;font-weight:600;margin:4px 0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bar{height:6px;background:var(--ins);border-radius:3px;overflow:hidden}
 .bar>div{height:100%;width:100%;background:var(--green);transform-origin:left;transform:scaleX(0);will-change:transform}
@@ -133,8 +136,8 @@ button.syncbadge:hover{background:rgba(242,85,90,.24)}
 button.syncbadge.on{background:rgba(53,201,139,.15);color:var(--green)}
 button.syncbadge.on:hover{background:rgba(53,201,139,.24)}
 /* slave: status badge (top of the on-air card) and its controls */
-.slvstatus{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:4px;flex-shrink:0;
-  font-size:11px;font-weight:700;letter-spacing:.08em;white-space:nowrap}
+.slvstatus{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8.4px 0 9.6px;border-radius:4px;flex-shrink:0;
+  font-size:11px;font-weight:700;letter-spacing:.08em;padding-top:1.2px;white-space:nowrap}   /* letters centred (measured) */
 .slvstatus::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor}
 .slvstatus.follow{background:rgba(53,201,139,.18);color:var(--green)}
 .slvstatus.free{background:rgba(242,160,61,.18);color:var(--orange)}
@@ -190,7 +193,7 @@ button.scene-btn small{font-weight:400;font-size:10px}
 .vid.novid{visibility:hidden}
 /* cue on/off: a small text tag, click to switch */
 button.en,span.en{display:inline-flex;align-items:center;flex-shrink:0;margin:4px 2px 0 4px;height:14px;width:48px;padding:0;justify-content:center;
-  border-radius:3px;font-size:8px;line-height:14px;font-weight:700;letter-spacing:.06em;
+  border-radius:3px;font-size:8px;line-height:14px;font-weight:700;letter-spacing:.06em;padding-bottom:.5px;
   /* letter-spacing adds space after the last letter: the indent puts the same before it, so the word is centred */
   text-indent:.06em;background:rgba(242,85,90,.15);color:var(--red)}
 button.en.on,span.en.on{background:rgba(53,201,139,.15);color:var(--green)}
@@ -217,7 +220,7 @@ button.tsum:hover:not(:disabled){filter:brightness(1.3)}
 .item button.del{color:var(--red)}
 .item button.del:hover:not(:disabled){background:rgba(242,85,90,.14);color:var(--red)}
 /* transition of a cue: a badge, length in brackets; grey = the default, blue = its own */
-.tsum{display:inline-flex;align-items:center;height:14px;padding:0 6px;border-radius:3px;font-size:8px;line-height:14px;
+.tsum{display:inline-flex;align-items:center;height:14px;padding:0 6px .5px;border-radius:3px;font-size:8px;line-height:14px;
   font-weight:700;letter-spacing:.06em;white-space:nowrap;flex-shrink:0;
   background:rgba(255,255,255,.07);color:var(--text3)}   /* same cut as ACTIVE / SKIPPED */
 .tsum:empty{display:none}
@@ -268,7 +271,10 @@ button.tsum:hover:not(:disabled){filter:brightness(1.3)}
 .status{font-size:11px;color:var(--text3);margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* MASTER / SLAVE in the header */
 .roleseg{display:flex;gap:2px;background:var(--card);border-radius:7px;padding:2px;flex-shrink:0}
-.roleseg button{font-size:9px;font-weight:700;letter-spacing:.06em;padding:3px 4px;border-radius:5px;background:transparent;color:var(--text4)}
+.roleseg button{font-size:9px;font-weight:700;letter-spacing:.06em;text-indent:.06em;padding:4.2px 4px 1.8px;border-radius:5px;background:transparent;color:var(--text4)}
+/* small capitals sit high in their line: 1.2 px more above than below centres
+   them (measured on the rendered letters); the indent balances the space
+   letter-spacing leaves after the last letter */
 .roleseg button:hover:not(.on){color:var(--text2)}
 .roleseg button.on{background:rgba(53,201,139,.15);color:var(--green);cursor:default}
 /* lock mode: nothing can be changed, played or stopped */
@@ -283,7 +289,7 @@ body.locked #syncBox button, body.locked #syncBox label, body.locked #updBox but
 body.locked #transport, body.locked #plToolbar, body.locked #addBox, body.locked #roleSeg, body.locked #syncBox button,
 body.locked #updBox button, body.locked #pageSync section, body.locked #items{opacity:.45}
 body.locked #miEye, body.locked #miCopy{pointer-events:auto}
-/* tally (PixelHue): red ON AIR, green PVW, nothing otherwise */
+/* tally (any switcher, tally/): red ON AIR, green PVW, nothing otherwise */
 /* tally badge, in the on-air card: ON AIR solid red, PVW solid green */
 .tallyslot{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0}
 /* top of the on-air card: tally centred on the panel whatever the sides
@@ -313,7 +319,7 @@ body.locked #miEye, body.locked #miCopy{pointer-events:auto}
    semi-transparent like the app's buttons and breathing: ON AIR red (with
    the frame around the panel), PVW green */
 .tallybadge.pgm,.tallybadge.pvw{font:700 18px/1 'Poppins',var(--font);text-transform:uppercase;letter-spacing:.06em;text-indent:.06em;
-  width:104px;box-sizing:border-box;text-align:center;padding:5px 0 6px;border-radius:4px;color:#fff}   /* ON AIR and PVW: the same box */
+  width:104px;box-sizing:border-box;text-align:center;padding:5.8px 0 5.2px;border-radius:4px;color:#fff}   /* ON AIR and PVW: the same box (text centred on the letters) */
 .tallybadge.pgm{background:rgba(242,85,90,.18);color:var(--red);animation:signPulse 1.8s ease-in-out infinite}
 .tallybadge.pvw{background:rgba(53,201,139,.18);color:var(--green);animation:pvwPulse 1.8s ease-in-out infinite}
 @keyframes signPulse{0%,100%{background-color:rgba(242,85,90,.12)}50%{background-color:rgba(242,85,90,.32)}}
@@ -412,6 +418,7 @@ button.durbtn.def{color:var(--text3)}
     <button id="roleS" title="This PC follows a master">SLAVE</button>
   </div>
   <div class="tabs">
+    <button class="danger panic hidden" id="btnPanic" title="Stops the whole tally at once: OBS Conductor then sends nothing to any switcher (OBS and the master / slave links go on)">STOP TALLY</button>
     <button class="tabbtn on" id="tabPlaylist" title="Home: on air and playlist"></button>
     <button class="tabbtn" id="tabSync" title="Settings"></button>
   </div>
@@ -576,10 +583,30 @@ button.durbtn.def{color:var(--text3)}
   </section>
 
   <section id="secTally">
-    <div class="cardrow" title="PixelHue Q8 / P20 / P80: is this OBS on air? (reads only, never sends a command)"><span class="lbl grow">Tally</span><span class="stbadge" id="tlBadge">OFF</span></div>
+    <div class="cardrow" title="Is this OBS on air on the switcher? OBS Conductor only READS the switcher: it never sends it a command"><span class="lbl grow">Tally</span><span class="stbadge" id="tlBadge">OFF</span></div>
     <div class="cardrow" style="margin-top:8px">
-      <span class="small dim grow">Switcher address</span>
-      <input id="tlHost" placeholder="192.168.0.10" style="width:130px" title="IP of the PixelHue. Empty: no tally">
+      <span class="small grow" id="tlCutTxt"></span>
+      <button id="tlCutBtn"></button>
+    </div>
+    <div class="cardrow" style="margin-top:8px">
+      <span class="small dim grow">Switcher</span>
+      <select id="tlDevice" style="width:150px" title="The switcher model"></select>
+      <button class="ghost" id="tlScan" title="Looks for switchers on this PC's network: listens to their greeting or sends one read request (GET). ATEM and Barco are not scanned">Scan</button>
+    </div>
+    <div class="status hidden" id="tlScanStatus"></div>
+    <div class="found hidden" id="tlFound" style="margin-top:6px"></div>
+    <div class="cardrow" style="margin-top:6px">
+      <span class="small dim grow">Address</span>
+      <input id="tlHost" placeholder="192.168.0.10" style="width:110px" title="IP of the switcher. Empty: no tally">
+      <input id="tlPort" type="number" placeholder="port" style="width:62px" title="Port: empty = the model's usual one">
+    </div>
+    <div class="cardrow hidden" id="tlUserRow">
+      <span class="small dim grow">User</span>
+      <input id="tlUser" style="width:150px" autocomplete="off">
+    </div>
+    <div class="cardrow hidden" id="tlPassRow">
+      <span class="small dim grow">Password</span>
+      <input id="tlPass" type="password" style="width:150px" autocomplete="new-password">
     </div>
     <div class="cardrow">
       <span class="small dim grow">Input of this OBS</span>
@@ -591,6 +618,7 @@ button.durbtn.def{color:var(--text3)}
       <button id="tlTest" title="Connects to the switcher again and reads its inputs (reads only)">Test connection</button>
       <span class="small grow ellip" id="tlTestRes"></span>
     </div>
+    <div class="status" id="tlNote">Reads only: never sends a command to the switcher.</div>
   </section>
 
   <section id="secApp">
@@ -755,14 +783,88 @@ async function loadSettings(){
   $('setRestart').checked = !!gen.playback.restart_media_on_switch;
   $('defDur').value = fmtSec(gen.default_duration);
   $('setPort').value = gen.dashboard.port; $('setBind').value = gen.dashboard.bind;
-  if (document.activeElement !== $('tlHost')) $('tlHost').value = (gen.tally && gen.tally.host) || '';
+  showTallySettings();
   loadTallyInputs();
   $('setVersion').textContent = gen.simulated ? 'simulation' : '';
   $('setIps').textContent = gen.local_ips && gen.local_ips.length ? 'This PC: ' + gen.local_ips.join(' / ') : '';
 }
+/** Settings > Tally: the switcher models (read from the app) and the fields of the chosen one. */
+let tallyDevices = [];
+(async () => {
+  try { tallyDevices = (await api('/api/tally/devices')).devices || []; } catch(e) {}
+  $('tlDevice').innerHTML = '<option value="">Choose...</option>' +
+    tallyDevices.map(d => `<option value="${esc(d.id)}">${esc(d.label)}</option>`).join('');
+  showTallySettings();
+})();
+const tallyDev = () => tallyDevices.find(d => d.id === $('tlDevice').value) || null;
+function showTallySettings(){
+  const t = (gen && gen.tally) || {};
+  if (document.activeElement !== $('tlDevice') && tallyDevices.length) $('tlDevice').value = t.device || '';
+  if (document.activeElement !== $('tlHost')) $('tlHost').value = t.host || '';
+  if (document.activeElement !== $('tlPort')) $('tlPort').value = t.port || '';
+  if (document.activeElement !== $('tlUser')) $('tlUser').value = t.user || '';
+  showTallyAuth();
+}
+function showTallyAuth(){
+  const d = tallyDev(), t = (gen && gen.tally) || {};
+  $('tlPort').placeholder = d && d.port ? String(d.port) : 'auto';
+  $('tlPort').title = d ? `Port: empty = ${d.port_hint || 'the usual one'}` : 'Port';
+  $('tlUserRow').classList.toggle('hidden', !d || d.auth !== 'userpass');
+  $('tlPassRow').classList.toggle('hidden', !d || !d.auth);
+  $('tlUser').placeholder = (d && d.default_user) || 'admin';
+  $('tlPass').placeholder = t.has_password ? '•••••• (kept)' : (d && d.auth_hint) || '';
+  $('tlPass').title = (d && d.auth_hint) || '';
+  $('tlHost').title = d ? `IP of the ${d.label}. Empty: no tally` : 'IP of the switcher';
+}
+$('tlDevice').onchange = async () => { await saveSettings({tally: {device: $('tlDevice').value}}); showTallySettings(); loadTallyInputs(); };
 $('tlHost').onchange = async () => { await saveSettings({tally: {host: $('tlHost').value}}); loadTallyInputs(); };
-$('tlInput').onchange = () => saveSettings({tally: {input: $('tlInput').value}});
+$('tlPort').onchange = async () => { await saveSettings({tally: {port: $('tlPort').value || null}}); loadTallyInputs(); };
+$('tlUser').onchange = async () => { await saveSettings({tally: {user: $('tlUser').value}}); loadTallyInputs(); };
+$('tlPass').onchange = async () => { await saveSettings({tally: {password: $('tlPass').value}}); $('tlPass').value = ''; showTallyAuth(); loadTallyInputs(); };
+$('tlInput').onchange = () => {
+  const i = tallyInputs.find(x => x.id === $('tlInput').value);
+  saveSettings({tally: {input: $('tlInput').value, input_name: i ? i.name : ''}});
+};
 $('tlRefresh').onclick = () => loadTallyInputs();
+
+/** STOP TALLY: cut the whole tally (one click), or turn it on again (Settings). */
+async function setTallyCut(cut){
+  try {
+    await api('/api/tally/panic', {body: {cut}});
+    flashInfo(cut ? 'Tally stopped: nothing is sent to any switcher' : 'Tally on');
+    if (S) { S.tally = {...(S.tally || {}), cut, state: null, connected: false, error: null}; renderTally(); }
+    if (!cut) setTimeout(() => loadTallyInputs(true), 1500);
+  } catch(e) { flashError(e.message); }
+}
+$('btnPanic').onclick = () => setTallyCut(true);
+$('tlCutBtn').onclick = () => setTallyCut(!((S && S.tally) || {}).cut);
+
+/** Settings > Tally > Scan: the switchers found on the network; a click fills the fields. */
+$('tlScan').onclick = async () => {
+  const b = $('tlScan'), st = $('tlScanStatus'), box = $('tlFound');
+  b.disabled = true; st.classList.remove('hidden'); st.style.color = ''; st.textContent = 'Looking for switchers on the network...';
+  box.classList.add('hidden'); box.innerHTML = '';
+  try {
+    const found = (await api('/api/tally/scan')).found || [];
+    st.textContent = (found.length ? `${found.length} found: click the right one.` : 'None found: choose the model and type its address.') +
+      ' ATEM and Barco are not scanned (choose them in the list).';
+    st.style.color = found.length ? '' : 'var(--orange)';
+    for (const f of found) {
+      const d = document.createElement('div');
+      d.className = 'fr';
+      d.innerHTML = `<div class="a"><span class="n">${esc(f.model)}</span>${f.needs_auth ? '<span class="tag g">PASSWORD</span>' : ''}</div><div class="ip">${esc(f.host)} · ${esc(f.label)}</div>`;
+      d.onclick = async () => {
+        await saveSettings({tally: {device: f.device, host: f.host, port: null}});
+        showTallySettings(); box.classList.add('hidden'); st.classList.add('hidden');
+        loadTallyInputs();
+        if (f.needs_auth) flashInfo('Tally: type the switcher\'s password');
+      };
+      box.appendChild(d);
+    }
+    box.classList.toggle('hidden', !found.length);
+  } catch(e) { st.textContent = 'Scan failed: ' + e.message; st.style.color = 'var(--red)'; }
+  b.disabled = false;
+};
 
 /** Where an input is right now, in the list: tells the OBS feed from a look-alike. */
 function whereLabel(t){
@@ -773,13 +875,15 @@ function whereLabel(t){
   return '';
 }
 
-/** Settings > Tally: the switcher's inputs, read from it (nothing to type). */
+/** Settings > Tally: the switcher's inputs [{id, name}], read from it (nothing to type). */
 let tallyInputs = [], tallyListError = '';
 // the list shows where each input is now: read again while Settings is open
 setInterval(() => { if (!$('pageSync').classList.contains('hidden') && document.activeElement !== $('tlInput') && $('tlHost').value.trim()) loadTallyInputs(true); }, 10000);
 async function loadTallyInputs(quiet){
   const sel = $('tlInput');
-  let cur = (gen && gen.tally && gen.tally.input) || '';
+  const t = (gen && gen.tally) || {};
+  let cur = t.input || '';
+  if (!$('tlDevice').value) { sel.innerHTML = '<option value="">Choose the model first</option>'; sel.disabled = true; return; }
   if (!$('tlHost').value.trim()) { sel.innerHTML = '<option value="">Type the address first</option>'; sel.disabled = true; return; }
   if (!quiet) { sel.disabled = true; sel.innerHTML = '<option>Reading the inputs...</option>'; }
   let err = null;
@@ -788,14 +892,19 @@ async function loadTallyInputs(quiet){
   catch(e) { err = e.message; tallyInputs = []; }
   // nothing chosen yet: the input named like this PC is taken at once
   let auto = false;
-  if (!cur && suggest) { cur = suggest; auto = true; saveSettings({tally: {input: suggest}}); }
+  if (!cur && suggest) {
+    const s = tallyInputs.find(x => x.id === suggest);
+    cur = suggest; auto = s ? s.name : suggest;
+    saveSettings({tally: {input: suggest, input_name: s ? s.name : ''}});
+  }
   const list = tallyInputs.slice();
-  if (cur && !list.includes(cur)) list.unshift(cur);
+  const known = id => tallyInputs.some(x => x.id === id);
+  if (cur && !known(cur)) list.unshift({id: cur, name: t.input_name || cur});
   sel.innerHTML = '<option value="">' + (err ? 'Switcher not reachable' : list.length ? 'Choose...' : 'No input found') + '</option>' +
-    list.map(n => `<option value="${esc(n)}"${n === cur ? ' selected' : ''}>${esc(n)}${tallyInputs.includes(n) || err ? (n === cur ? '' : esc(whereLabel(states[n]))) : ' (not on the switcher)'}</option>`).join('');
+    list.map(x => `<option value="${esc(x.id)}"${x.id === cur ? ' selected' : ''}>${esc(x.name)}${known(x.id) || err ? (x.id === cur ? '' : esc(whereLabel(states[x.id]))) : ' (not on the switcher)'}</option>`).join('');
   sel.disabled = false;
   tallyListError = err ? 'Its inputs could not be read.' : '';
-  if (!err && auto) flashInfo(`Tally: "${suggest}" chosen (like this PC's name, ${pc})`);
+  if (!err && auto) flashInfo(`Tally: "${auto}" chosen (like this PC's name, ${pc})`);
 }
 
 $('tlTest').onclick = async () => {
@@ -805,9 +914,10 @@ $('tlTest').onclick = async () => {
   if (gen && gen.tally && host !== (gen.tally.host || '')) await saveSettings({tally: {host}});
   try {
     const j = await api('/api/tally/test');
-    out.textContent = j.ok ? `✓ Answered in ${j.ms} ms · ${j.inputs} input${j.inputs > 1 ? 's' : ''}, ${j.screens} screen${j.screens > 1 ? 's' : ''}`
+    out.textContent = j.ok ? `✓ ${j.model || 'Answered'} in ${j.ms} ms · ${j.inputs} input${j.inputs > 1 ? 's' : ''}` +
+                             (j.screens != null ? `, ${j.screens} output${j.screens > 1 ? 's' : ''}` : '')
                            : '✗ ' + (j.error || 'No answer');
-    out.title = j.ok ? `${j.host}:${j.port} · SN ${j.sn}` : (j.error || '');
+    out.title = j.ok ? [j.model, j.detail].filter(Boolean).join(' · ') : (j.error || '');
     out.style.color = j.ok ? 'var(--green)' : 'var(--red)';
     if (j.ok) loadTallyInputs(true);
   } catch(e) { out.textContent = '✗ ' + e.message; out.style.color = 'var(--red)'; }
@@ -844,11 +954,20 @@ function renderTally(){
   }
   // ON AIR: red breathing frame around the whole panel (not for PVW)
   document.body.classList.toggle('onair', cls === 'pgm');
+  // STOP TALLY: the red button at the top while the tally is on; the Settings switch
+  const cut = !!t.cut;
+  $('btnPanic').classList.toggle('hidden', cut);
+  $('tlCutTxt').textContent = cut ? 'Tally stopped: nothing is sent to any switcher.' : 'Tally on (reads the switcher).';
+  $('tlCutTxt').style.color = cut ? 'var(--orange)' : 'var(--green)';
+  $('tlCutBtn').textContent = cut ? 'Turn the tally on' : 'Stop tally';
+  $('tlCutBtn').className = cut ? 'primary' : 'danger';
+  $('tlCutBtn').title = cut ? 'OBS Conductor will read the switcher again (reads only)' : 'Stops the whole tally at once: nothing is sent to any switcher any more';
+  $('tlScan').disabled = cut; $('tlTest').disabled = cut;
   // Settings
-  $('tlBadge').textContent = !t.configured ? 'OFF' : t.connected ? 'CONNECTED' : 'DISCONNECTED';
-  $('tlBadge').className = 'stbadge' + (!t.configured ? '' : t.connected ? ' run' : ' lost');
+  $('tlBadge').textContent = cut ? 'STOPPED' : !t.configured ? 'OFF' : t.connected ? 'CONNECTED' : 'DISCONNECTED';
+  $('tlBadge').className = 'stbadge' + (cut ? ' warn' : !t.configured ? '' : t.connected ? ' run' : ' lost');
   const act = !t.configured || (t.connected && t.state === 'none' && t.multiviewer);
-  $('tlStatus').textContent = !t.configured ? (t.host ? 'Choose the input of this OBS.' : 'Type the switcher\'s address.')
+  $('tlStatus').textContent = cut ? 'Turn the tally on to read the switcher.' : !t.configured ? (!t.device ? 'Choose the switcher model (or Scan).' : t.host ? 'Choose the input of this OBS.' : 'Type the switcher\'s address.')
     : t.connected ? (t.state === 'pgm' ? `"${t.input}" is on air: ${(t.pgm || []).join(', ')}`
       : t.state === 'pvw' ? `"${t.input}" is in preview: ${(t.pvw || []).join(', ')}`
       : `"${t.input}": not on air` + (t.multiviewer ? ' (only on the multiviewer: the right input?)' : ''))

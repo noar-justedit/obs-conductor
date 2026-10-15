@@ -1,14 +1,18 @@
 'use strict';
-// Tally from a PixelHue Q8: a fake switcher (REST part) answers like the real one.
+// Tally engine + PixelHue driver: a fake switcher (REST part) answers like the real one.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('http');
-const { Q8Tally, stateOf, token, READ_ONLY, getJson } = require('../src/tally');
+const { TallyEngine, stateOf, token, READ_ONLY, getJson, suggestInput, tallyOf, catalog } = require('../src/tally/index');
+const guard = require('../src/tally/guard');
+// the tally starts CUT (STOP TALLY on): these tests run with it on
+test.before(() => guard.setCut(false));
 
 const quiet = { info() {}, warn() {}, error() {} };
 // a layer as the switcher lists it: input shown, PGM (2) / PVW (4), screen
 const layer = (name, sceneType, screen = 1) => ({ source: { general: { sourceName: name } }, layerIdObj: { sceneType, attachScreenId: screen } });
 const screen = (screenId, type = 2, more = {}) => ({ screenId, screenIdObj: { type }, enable: 1, ftb: { enable: 0 }, ...more });
+const until = async f => { for (let i = 0; i < 80 && !f(); i++) await new Promise(r => setTimeout(r, 100)); };
 
 test('PGM layer = ON AIR, PVW layer = PVW, names compared exactly', () => {
   const layers = [layer('OBS HALL 8', 4), layer('CAM 1', 2), layer('OBS HALL 9', 0)];
@@ -31,7 +35,7 @@ test('the multiviewer, a disabled screen or a screen in FTB are not on air', () 
   assert.equal(stateOf([layer('CAM 1', 2, 1)], [], 'CAM 1'), 'pgm');         // screens unknown: counts
 });
 
-test('talks to the switcher: token, polling, reconnect after a restart', async () => {
+test('engine + PixelHue: token, polling, reconnect after a restart, inputs, test', async () => {
   let startTime = '1700000000', region = 2, calls = 0;
   const seen = [];                              // every request the app made
   const srv = http.createServer((req, res) => {
@@ -47,11 +51,13 @@ test('talks to the switcher: token, polling, reconnect after a restart', async (
     res.writeHead(404); res.end();
   });
   await new Promise(r => srv.listen(0, '127.0.0.1', r));
-  const t = new Q8Tally(() => ({ host: '127.0.0.1', input: 'OBS HALL 8', api_port: srv.address().port }), quiet);
-  const until = async f => { for (let i = 0; i < 60 && !f(); i++) await new Promise(r => setTimeout(r, 100)); };
+  // a 2.1 config: no model (= PixelHue), the input by its name
+  const cfg = { device: 'pixelhue', host: '127.0.0.1', input: 'OBS HALL 8', api_port: srv.address().port };
+  const t = new TallyEngine(() => cfg, quiet);
   try {
     await until(() => t.snapshot().state === 'pgm');
     assert.equal(t.snapshot().state, 'pgm');
+    assert.equal(t.snapshot().input, 'OBS HALL 8');
     region = 4;
     await until(() => t.snapshot().state === 'pvw');
     assert.equal(t.snapshot().state, 'pvw');
@@ -61,10 +67,12 @@ test('talks to the switcher: token, polling, reconnect after a restart', async (
     assert.equal(t.snapshot().state, 'pgm');
     assert.ok(calls > 3);
     // the inputs, read from the switcher (nothing to type)
-    assert.deepEqual(await t.inputs(), ['CAM 1', 'OBS HALL 8', 'OBS HALL 10']);
-    // Settings > Test connection: connects again, reads the inputs and screens
-    const r = await t.test();
-    assert.equal(r.ok, true); assert.equal(r.sn, 'SN1'); assert.equal(r.inputs, 3); assert.equal(r.screens, 1);
+    const r = await t.inputs();
+    assert.deepEqual(r.inputs.map(i => i.name), ['CAM 1', 'OBS HALL 8', 'OBS HALL 10']);
+    assert.deepEqual(r.states['OBS HALL 8'].pgm, ['Screen 1']);
+    // Settings > Test connection: connects again, reads everything once
+    const tr = await t.test();
+    assert.equal(tr.ok, true); assert.equal(tr.inputs, 3); assert.equal(tr.screens, 1);
     // READ ONLY (absolute rule): only GETs, only to read addresses
     assert.ok(seen.length > 5);
     for (const [method, path] of seen) {
@@ -74,17 +82,22 @@ test('talks to the switcher: token, polling, reconnect after a restart', async (
   } finally { t.stop(); srv.close(); }
 });
 
-test('Test connection: no address, switcher away', async () => {
-  const none = new Q8Tally(() => ({ host: '', input: '' }), quiet);
-  const away = new Q8Tally(() => ({ host: '127.0.0.1', input: 'X', api_port: 9 }), quiet);
+test('Test connection: no model, no address, switcher away', async () => {
+  const none = new TallyEngine(() => ({ device: '', host: '', input: '' }), quiet);
+  const noHost = new TallyEngine(() => ({ device: 'vmix', host: '', input: '' }), quiet);
+  const away = new TallyEngine(() => ({ device: 'pixelhue', host: '127.0.0.1', input: 'X', api_port: 9 }), quiet);
   try {
-    assert.equal((await none.test()).ok, false);
+    assert.match((await none.test()).error, /model/);
+    assert.match((await noHost.test()).error, /address/);
     const r = await away.test();
     assert.equal(r.ok, false); assert.ok(r.error);
-  } finally { none.stop(); away.stop(); }
+    await until(() => away.snapshot().error);
+    assert.equal(away.snapshot().connected, false);
+    assert.match(away.snapshot().error, /PixelHue/);
+  } finally { none.stop(); noHost.stop(); away.stop(); }
 });
 
-test('READ ONLY: any other address is refused before anything is sent', async () => {
+test('READ ONLY: any other PixelHue address is refused before anything is sent', async () => {
   let hit = 0;
   const srv = http.createServer((req, res) => { hit++; res.end('{}'); });
   await new Promise(r => srv.listen(0, '127.0.0.1', r));
@@ -98,16 +111,16 @@ test('READ ONLY: any other address is refused before anything is sent', async ()
 });
 
 test('the input named like this PC is suggested, only when there is no doubt', () => {
-  const { suggestInput } = require('../src/tally');
   const inputs = ['CAM 1', 'OBS HALL 8', 'OBS HALL 9', 'PLAYBACK'];
   assert.equal(suggestInput(inputs, 'HALL8'), 'OBS HALL 8');
   assert.equal(suggestInput(inputs, 'hall-9'), 'OBS HALL 9');
   assert.equal(suggestInput(inputs, 'DESKTOP-AB12CD'), null);
   assert.equal(suggestInput(['OBS HALL 8', 'HALL 8 BACKUP'], 'HALL8'), null);   // two match: no guess
+  // [{id, name}] (every machine but PixelHue): the id comes back
+  assert.equal(suggestInput([{ id: '3', name: 'CAM 1' }, { id: '7', name: 'OBS HALL8' }], 'HALL8'), '7');
 });
 
 test('real Q8 answer: the OBS feed is on air, its look-alike only on the multiviewer', () => {
-  const { tallyOf } = require('../src/tally');
   const q = require('./fixtures/q8-hall8.json');
   const obs = tallyOf(q.layers, q.screens, 'OBS HALL 8');
   assert.equal(obs.state, 'pgm');
@@ -116,4 +129,10 @@ test('real Q8 answer: the OBS feed is on air, its look-alike only on the multivi
   assert.equal(look.state, 'none');
   assert.equal(look.multiviewer, true);
   assert.equal(tallyOf(q.layers, q.screens, 'IPTV7 NO CURRENT').pgm.includes('Monitor'), false);   // layer switched off
+});
+
+test('the machine list: the ten families asked for, without V-60HD', () => {
+  const ids = catalog().map(d => d.id);
+  for (const id of ['atem', 'roland', 'vmix', 'tricaster', 'eventmaster', 'livepremier', 'livecore', 'pixelhue', 'kairos']) assert.ok(ids.includes(id), id);
+  assert.ok(!catalog().some(d => /V-60HD/.test(d.label)));
 });

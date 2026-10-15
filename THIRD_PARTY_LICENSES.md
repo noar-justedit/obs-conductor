@@ -13,6 +13,18 @@ a GPL-3.0 program.
 | **Oswald** typeface | `src/fonts/Oswald.ttf` | The Oswald Project Authors | SIL Open Font License 1.1 | [`src/fonts/Oswald-OFL.txt`](src/fonts/Oswald-OFL.txt) |
 | **Lucide** icons (the app icon is Lucide's "list-video"; several dock icons follow Lucide's drawings) | `src/icons/`, `src/dock.html` | Lucide Icons and Contributors | ISC | [`src/icons/LUCIDE-LICENSE.txt`](src/icons/LUCIDE-LICENSE.txt) |
 
+Protocol information for the tally (no code copied: OBS Conductor has its
+own drivers, `src/tally/drivers/`) comes from these Bitfocus Companion
+modules, all MIT licence: companion-module-bmd-atem (and its library
+atem-connection), companion-module-roland-v160hd, companion-module-
+studiocoast-vmix, companion-module-newtek-tricaster, companion-module-barco-
+eventmaster, companion-module-analogway-livepremier, companion-module-
+analogway-awj, companion-module-analogway-livecore, companion-module-
+pixelhue-switcher, companion-module-panasonic-kairos
+(https://github.com/bitfocus), and from the manufacturers' published
+protocol guides (Roland, Barco, Analog Way, vMix, Panasonic). Brand and
+product names belong to their owners.
+
 Build tools used to make the installers (not shipped inside the app):
 NSIS (zlib/libpng licence) for the Windows installer, appimagetool (MIT) for
 the AppImage, Apple's Xcode command line tools for the macOS app.

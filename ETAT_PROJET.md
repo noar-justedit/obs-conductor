@@ -1,6 +1,6 @@
 # OBS Conductor — état du projet
 
-*(ex OBS Playlist, ex OBS Scheduler)*, mis à jour le 15 oct. 2026, version **2.1.2**.
+*(ex OBS Playlist, ex OBS Scheduler)*, mis à jour le 15 oct. 2026, version **2.2.1**.
 
 ## En bref
 Dock OBS de playlist de scènes, **Windows, macOS et Linux** (depuis la 2.0),
@@ -32,7 +32,9 @@ arrière-plan sans fenêtre.
 | `src/auth.js` | signature des requêtes slave → master avec le mot de passe WebSocket du master |
 | `src/dock-loader.html` | page locale ouverte par le dock d'OBS : passe la main à l'appli, ou dit qu'elle ne tourne pas |
 | `src/discovery.js` | esclave : scan du réseau (OBS 4455 + OBS Conductor 8090), test du mot de passe |
-| `src/tally.js` | tally PixelHue Q8 / P20 / P80 (protocole : `docs/Q8-TALLY-API.md`) |
+| `src/tally/index.js` | tally : le moteur (propre à OBS Conductor), la liste des machines (`DRIVERS`), le scan réseau, `suggestInput` |
+| `src/tally/guard.js` | tally : garde LECTURE SEULE (HTTP, TCP, UDP) : tout message est comparé à la liste fermée du driver avant l'envoi |
+| `src/tally/drivers/*.js` | tally : un driver par famille (atem, roland, vmix, tricaster, eventmaster, livepremier, livecore, pixelhue, kairos) qui traduit le protocole en image commune ; détail et ajout d'une machine : `docs/TALLY-DEVICES.md` |
 | `src/update.js` | versions master / slave, mise à jour d'un slave depuis son master |
 | `src/tray.js`, `src/tray.ps1` | Windows : icône de barre des tâches + notifications (PowerShell WinForms, lancé par l'appli) ; macOS : lance `OBSConductorMenu` (voir ci-dessous) ; rien sur Linux |
 | `installer/mac/menubar.m` | macOS : icône de la barre de menus (Objective-C, AppKit), compilée par `build_mac.command` en `Contents/MacOS/OBSConductorMenu` ; interroge `GET /api/tray` toutes les 1,5 s ; Quit = `POST /api/app/quit`. Non testée sur un vrai Mac au moment de l'écriture (2.1) |
@@ -166,11 +168,41 @@ Format d'une playlist : voir l'en-tête de `src/player.js`
   les dossiers système (`unsafeTarget`). Restent : installeur non signé
   (pas de certificat), HTTP en clair sur le réseau du show.
 - **Tally en lecture seule, règle absolue de Noar** : jamais de commande
-  vers le Q8 ni vers aucun futur appareil de tally (Aquilon, E2, Encore 3...).
-  Seulement des GET vers la liste fermée `READ_ONLY` de `src/tally.js` ;
-  `getJson` refuse toute autre adresse avant d'envoyer quoi que ce soit ;
-  `test/tally.test.js` vérifie la méthode et l'adresse de chaque requête.
-  Voir AGENTS.md.
+  vers un switcher. En 2.2, Noar a choisi d'autoriser aussi ce qui est
+  nécessaire pour lire sans rien changer (ouverture de session ATEM, mot de
+  passe Roland / Analog Way / KAIROS / TriCaster, abonnement). Chaque driver
+  a sa liste fermée (`RULES`) et des exemples interdits (`FORBIDDEN`) ;
+  `src/tally/guard.js` refuse tout le reste avant l'envoi ;
+  `test/tally-drivers.test.js` vérifie, contre une fausse machine par
+  driver, que tout ce qui part est dans la liste. Voir AGENTS.md.
+- **Tally multi-machines (2.2, demande de Noar)** : moteur propre à OBS
+  Conductor + un driver de « traduction » par famille, protocoles repris des
+  modules Bitfocus Companion (MIT) et des docs constructeurs, sans copier
+  leur code (un module Companion peut envoyer des commandes à son
+  initialisation : impossible à garantir en lecture seule). Machines :
+  ATEM (UDP 9910), Roland V-160HD (TCP 8023), vMix (TCP 8099), TriCaster
+  (HTTP 80), Barco E2 / S3 / EX / Encore 3 (JSON-RPC 9999), Analog Way
+  Aquilon (REST 80) et Ascender (LiveCore TCP 10600), PixelHue Q8 / P10 /
+  P20 / P80, Panasonic KAIROS (REST 1234). Exclus : Roland V-60HD / XS-62S
+  (une seule connexion, choix de Noar), V-1200HD (pas de lecture connue),
+  ancien Barco Encore (pas de lecture du tally). Autodétection par bouton
+  « Scan » seulement (choix de Noar), à défaut liste des modèles + adresse.
+  2.2.1 (choix de Noar, après « je veux la garantie qu'il ne déclenchera
+  JAMAIS une commutation ») : le Scan n'envoie à une machine inconnue
+  qu'une connexion et au plus UN GET (listes `<id>-scan`) ; ATEM (le hello
+  ouvre une session) et Barco (POST) ne sont plus scannés. Proposés et non
+  retenus pour l'instant : vérification d'identité avant toute lecture,
+  listes figées par un test, suppression du Scan.
+  STOP TALLY (2.2.1, demande de Noar, d'abord appelé PANIC, « tant que le système de Tally n'est pas
+  approuvé ») : le tally démarre COUPÉ (`guard.js`, `cut = true` au
+  chargement) ; bouton STOP TALLY rouge en haut du dock et interrupteur dans
+  Settings > Tally (`POST /api/tally/panic`, permis même verrouillé pour
+  couper) ; coupé, plus aucune connexion ni aucun octet vers un switcher,
+  les connexions ouvertes sont fermées. OBS et master / slave continuent
+  (choix de Noar : « tout le tally », pas tout le réseau).
+  Réglages : `tally.device` (id du driver), `host`, `port`, `user`,
+  `password` (jamais renvoyé au dock : `has_password`), `input` (id),
+  `input_name`. Un réglage 2.1 sans `device` = PixelHue.
 - **Tally : lecture par les layers** (correctif après la 1.5.0, rien n'était
   jamais ON AIR chez Noar) : la doc fournie passait par les presets
   (`currentRegion`), mais les layers n'ont pas d'id de preset. Logique reprise
@@ -288,7 +320,7 @@ Format d'une playlist : voir l'en-tête de `src/player.js`
   avait été choisi. Choisir un dossier (Settings ou la Sync) passe en `custom`.
 - **Tally > Test connection** (`/api/tally/test`, ce PC seulement) : nouvelle
   connexion puis lecture des entrées et des écrans, toujours via la liste
-  READ_ONLY de `tally.js`.
+  liste fermée du driver (`src/tally/guard.js`).
 - **Temps restant de la Sync** = octets restants / vitesse moyenne depuis le
   début de la copie (calculé par `media-sync.js`, `eta_s`). Seuls les octets
   réellement reçus comptent dans la vitesse (une reprise de copie coupée
@@ -400,9 +432,19 @@ Format d'une playlist : voir l'en-tête de `src/player.js`
   du show. Pare-feu : règles limitées au sous-réseau local
   (`remoteip=localsubnet`) ; un master et ses slaves sur deux sous-réseaux
   routés ne se verraient plus (régler la règle à la main).
-- Tally : protocole PixelHue non officiel (rétro-ingénierie, `docs/`), testé
-  ici contre un faux switcher seulement. Layers « orphelins » (hors preset)
-  ignorés.
+- Tally : protocole PixelHue non officiel (rétro-ingénierie, `docs/`).
+  Layers « orphelins » (hors preset) ignorés.
+- Tally 2.2 : les 8 nouveaux drivers sont testés contre de fausses machines
+  construites d'après les documents, **jamais sur du vrai matériel**. Points
+  à vérifier listés par machine dans `docs/TALLY-DEVICES.md` (keys / DSK
+  comptés ou non, bits de tally KAIROS, statuts de layers Aquilon, numéros
+  de sources LiveCore). Le hello UDP ATEM du scan 2.2.0 n'est plus envoyé
+  (2.2.1) ; le Scan ouvre une connexion sur les ports
+  connus ; sur un Roland V-60HD, elle occupe un instant sa seule place.
+- Garantie (dit à Noar) : le code ne peut émettre que les messages des
+  listes fermées ; ce qui ne peut pas être garanti par le logiciel : la
+  réaction d'un firmware à une lecture, et une mauvaise adresse saisie
+  (les lectures d'un modèle envoyées à une autre machine).
 - Dialogues Windows (Save / Load / dossier) et question Quit de l'icône :
   PowerShell est lancé caché, et Windows cache la première fenêtre du
   processus ; une fenêtre invisible la prend (`dialogs.js`, `tray.ps1`).
@@ -458,12 +500,12 @@ Programme de Noar (oct. 2026), dans l'ordre :
    confirmés, tous corrigés (liste dans CHANGELOG). Ce n'est pas une autre
    IA au sens strict : une relecture par un autre outil reste utile.
    Design : reste à revoir avec Noar (rien changé sans sa demande).
-6. Tally, en attente de Noar : afficher le modèle PixelHue (Q8 / P20 / P80)
-   (il faut la réponse réelle de `device-list` pour connaître le champ) ;
-   Barco (E2 / S3 / Encore3 : JSON-RPC port 9999, `getFrameSettings` →
-   `FrameTypeName`) et Analog Way Aquilon (AWJ TCP 10606,
-   `DeviceObject/system/@props/dev`) seulement avec une vraie machine ou des
-   captures, toujours en lecture seule (liste fermée de lectures).
+6. Tally multi-machines : fait en 2.2 (10 familles demandées, V-60HD
+   exclu). À tester sur chaque vraie machine (Test connection +
+   `/api/tally/debug`), et corriger les points « à vérifier » de
+   `docs/TALLY-DEVICES.md`. Possibles ensuite : Midra 4K / Alta 4K (AWJ),
+   choix des sorties qui comptent comme antenne (ex. exclure un aux
+   d'enregistrement).
 7. Proposés, en attente d'un « oui » : retirer le bouton film (doublon de
    Auto-detect), même menu de durée pour la durée par défaut des Settings,
    sélecteur à deux boutons pour Medias location, retirer la police Oswald

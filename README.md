@@ -28,8 +28,14 @@ Windows · macOS · Linux — free and open source (GPL-3.0).
   whenever the master changes.
 - **Fallback** — if the master is lost, the slave shows a fallback scene or
   goes on with the playlist on its own.
-- **Tally** from a PixelHue Q8 switcher: ON AIR / PVW on top of the dock.
-  Strictly **read-only**: OBS Conductor never sends a command to a switcher.
+- **Tally** from the video switcher: ON AIR / PVW on top of the dock.
+  Blackmagic ATEM, Roland V-160HD, vMix, TriCaster / Viz Vectar, Barco E2 /
+  S3 / EX / Encore 3, Analog Way Aquilon and Ascender, PixelHue Q8 / P10 /
+  P20 / P80, Panasonic KAIROS. Found on the network with **Scan**, or chosen
+  in a list. Strictly **read-only**: OBS Conductor never sends a command to
+  a switcher (details: [docs/TALLY-DEVICES.md](docs/TALLY-DEVICES.md)).
+  The tally is in **beta**: it starts cut, and a **STOP TALLY** button cuts it in
+  one click (nothing is sent to any switcher any more).
 - **Lock mode**, playlists saved to files (`.obsplaylist`), works without
   internet, reconnects on its own when OBS restarts.
 

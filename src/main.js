@@ -36,7 +36,7 @@ const { MasterFollower, MasterMonitor } = require('./follower');
 const { Tray, Notes } = require('./tray');
 const { SceneSync } = require('./scene-sync');
 const { InstallerInfo, Updater } = require('./update');
-const { Q8Tally } = require('./tally');
+const { TallyEngine } = require('./tally/index');
 const { startServer } = require('./server');
 const obsSetup = require('./obs-setup');
 
@@ -154,8 +154,9 @@ class Companion {
       return c.enabled && c.master_host ? { host: c.master_host, port: c.master_dashboard_port || 8090, password: c.master_obs_password } : null;
     }, log, { simulate });
 
-    // tally: is this PC's OBS on air on the PixelHue switcher? (Settings)
-    this.tally = new Q8Tally(() => this.store.tallyConfig(), log);
+    // tally: is this PC's OBS on air on the switcher? (Settings > Tally;
+    // reads only, see tally/guard.js)
+    this.tally = new TallyEngine(() => this.store.tallyConfig(), log);
     this.notes = new Notes();
     // OBS on this PC: ok | off (WebSocket server switched off in OBS) |
     // closed (OBS not running) | auth (password refused) | unreachable | unknown
