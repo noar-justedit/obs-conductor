@@ -20,6 +20,9 @@
  *   TlSr  tally by source: bit 0 = on PROGRAM, bit 1 = in PREVIEW, computed
  *         by the ATEM itself (keys, DSK, SuperSource included, like its
  *         multiviewer's red / green borders)
+ *   AuxS  aux output n shows source x (2.3.0: an output of its own, "Aux n")
+ *   _ver  protocol version: identity (2.3.0): without it the answers are
+ *         not an ATEM's and nothing is read
  *   InCm  end of the initial state
  */
 
@@ -76,8 +79,8 @@ class Session {
   constructor(cfg, log) {
     this.cfg = cfg; this.log = log;
     this.host = cfg.host; this.port = cfg.port || PORT;
-    this.inputs = new Map(); this.tally = new Map(); this.model = 'ATEM';
-    this.ready = false; this.error = null; this.sock = null; this.addr = null;
+    this.inputs = new Map(); this.tally = new Map(); this.aux = new Map(); this.model = 'ATEM';
+    this.ready = false; this.isAtem = false; this.error = null; this.sock = null; this.addr = null;
     this._open();
     this._watch = setInterval(() => {
       if (Date.now() - this.lastRx > TIMEOUT_MS) { this.ready = false; this.error = 'no answer'; this._open(); }
@@ -89,7 +92,7 @@ class Session {
   _open() {
     if (this.sock) this.sock.close();
     this.session = 0; this.last = -1; this.lastRx = Date.now();
-    this.inputs = new Map(); this.tally = new Map();
+    this.inputs = new Map(); this.tally = new Map(); this.aux = new Map(); this.isAtem = false;
     const s = this.sock = new GuardedUdp('atem');
     s.onError = e => { this.error = e.message; };
     // only the ATEM's own packets count (its address and port)
@@ -128,7 +131,9 @@ class Session {
 
   _parse(payload) {
     for (const [name, b] of commands(payload)) {
-      if (name === '_pin' && b.length >= 1) this.model = cstr(b, 0, 40) || 'ATEM';
+      if (name === '_ver' && b.length >= 4) this.isAtem = true;
+      else if (name === '_pin' && b.length >= 1) this.model = cstr(b, 0, 40) || 'ATEM';
+      else if (name === 'AuxS' && b.length >= 4) this.aux.set(b[0], b.readUInt16BE(2));
       else if (name === 'InPr' && b.length >= 33) {
         const id = b.readUInt16BE(0);
         this.inputs.set(id, { id, long: cstr(b, 2, 20), short: cstr(b, 22, 4), type: b[32] });
@@ -137,6 +142,8 @@ class Session {
         for (let i = 0; i < n && 4 + i * 3 < b.length; i++) t.set(b.readUInt16BE(2 + i * 3), b[4 + i * 3]);
         this.tally = t;
       } else if (name === 'InCm') {
+        // identity: an ATEM states its protocol version first
+        if (!this.isAtem) { this.error = 'this machine doesn\'t answer like an ATEM (no protocol version)'; this.permanent = true; continue; }
         if (!this.ready) this.log.info(`Tally: connected to the ${this.model} at ${this.host}`);
         this.ready = true; this.error = null;
       }
@@ -147,7 +154,7 @@ class Session {
     if (!this.ready) {
       // the first state takes a moment: wait a little
       for (let i = 0; i < 30 && !this.ready; i++) await new Promise(r => setTimeout(r, 100));
-      if (!this.ready) throw new Error(this.error || 'no answer from the ATEM');
+      if (!this.ready) { const e = new Error(this.error || 'no answer from the ATEM'); if (this.permanent) e.permanent = true; throw e; }
     }
     const inputs = [...this.inputs.values()].filter(i => i.type === 0).sort((a, b) => a.id - b.id)
       .map(i => ({ id: String(i.id), name: i.long || i.short || `Input ${i.id}` }));
@@ -156,6 +163,8 @@ class Session {
       const v = this.tally.get(Number(i.id)) || 0;
       tally[i.id] = { pgm: v & 1 ? ['PGM'] : [], pvw: v & 2 ? ['PVW'] : [] };
     }
+    // aux outputs: their own outputs (Settings > Tally says which count)
+    for (const [n, src] of [...this.aux].sort((a, b) => a[0] - b[0])) if (tally[String(src)]) tally[String(src)].pgm.push(`Aux ${n + 1}`);
     return { model: this.model, inputs, tally };
   }
 
@@ -168,6 +177,8 @@ module.exports = {
   id: 'atem', label: 'Blackmagic ATEM', vendor: 'Blackmagic Design',
   port: PORT, portHint: 'UDP 9910', auth: null, scanPorts: [], scanHint: 'not scanned (it would open a session on any device): choose it in the list', pollMs: 300,
   source: 'companion-module-bmd-atem (atem-connection)',
+  // what the hand-written rule depends on: locked by test/tally-rules.test.js
+  RULE_PARTS: { hello: hello().toString('hex'), ack_flag: F_ACK, check: String(isAllowedPacket) },
   RULES, FORBIDDEN, create: (cfg, log) => new Session(cfg, log),
   hello, ackPacket, isAllowedPacket,
 };

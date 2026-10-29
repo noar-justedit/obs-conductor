@@ -64,9 +64,13 @@ class Session {
 
   async read() {
     if (!this.model) {
-      const v = await this._get('/v1/version').catch(() => '');
+      // identity (2.3.0): the machine must say it is a TriCaster / Vectar before anything else is read
+      const v = await this._get('/v1/version');
       const p = /<product_name>([^<]*)</.exec(v), ver = /<product_version>([^<]*)</.exec(v);
-      this.model = p ? `${p[1]}${ver ? ' ' + ver[1] : ''}` : 'TriCaster';
+      if (!p || !/tricaster|vectar|newtek|vizrt/i.test(p[1])) {
+        const e = new Error('this machine doesn\'t say it is a TriCaster: nothing else is read'); e.permanent = true; throw e;
+      }
+      this.model = `${p[1]}${ver ? ' ' + ver[1] : ''}`;
       this.log.info(`Tally: connected to the ${this.model} at ${this.cfg.host}`);
     }
     const xml = await this._get('/v1/dictionary?key=tally');

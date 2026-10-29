@@ -56,6 +56,75 @@ machine  --(son protocole)-->  drivers/xxx.js  --(image commune)-->  index.js (m
 
 - `src/tally/guard.js` : le **garde lecture seule** (HTTP, TCP, UDP).
 
+## Sorties qui comptent (Noar, 2.3.0)
+
+Par défaut **toutes les sorties** comptent comme antenne (choix de Noar).
+Chaque driver nomme la sortie où l'input est vu (« PGM », « Mix 2 »,
+« Aux 1 », « Screen 1 », « Overlay 1 »...). Settings > Tally liste les
+sorties lues sur la machine ; une sortie décochée (`tally.exclude_outputs`)
+ne compte plus, ni à l'antenne ni en preview. Le moteur ramène chaque entrée
+à sa sortie (`outputOf` dans `src/tally/index.js`) : « Mix 2 preview » →
+« Mix 2 », « PGM (layer) » → « PGM », la preview du programme principal
+(« PVW », « PST », « Preview ») → le programme principal. Changer de modèle
+remet toutes les sorties. Les multiviewers ne sont pas des sorties
+(PixelHue) : ils ne comptent jamais.
+
+## Identité avant toute lecture (2.3.0)
+
+Rien n'est lu sur une machine qui n'a pas dit ce qu'elle est ; sinon erreur
+permanente (pas de nouvel essai tant que les réglages ne changent pas) :
+- vMix : attend son « VERSION OK » avant d'envoyer `XML` ;
+- Roland : « Enter password: », « Welcome to », puis `VER;` = V-160HD ;
+- ATEM : la version de protocole (`_ver`) avant l'état ;
+- TriCaster : `GET /v1/version` doit nommer un TriCaster / Vectar ;
+- Barco : `getFrameSettings` doit décrire un châssis Event Master ;
+- Aquilon : `GET /system` doit donner un type « AQL... » ;
+- LiveCore : la réponse `DEVn` à `?` avant toute demande de tally ;
+- PixelHue : numéro de série et heure de démarrage (`open-detail`) ;
+- KAIROS : sa seule lecture (`GET /inputs`) doit avoir la forme KAIROS.
+
+## Listes de lecture verrouillées
+
+Les listes `RULES` / `SCAN_RULES` de chaque driver sont figées dans
+`test/fixtures/tally-rules.json`. `test/tally-rules.test.js` échoue dès
+qu'une liste change (un nouveau message autorisé à partir). Si le changement
+est voulu : vérifier qu'il ne permet que de lire, puis
+`UPDATE_RULES=1 node --test test/tally-rules.test.js` pour renouveler le
+fichier, et relire le diff. Limite : une règle écrite à la main (ATEM) est
+verrouillée par le texte de sa fonction de contrôle seule, pas par les
+fonctions qu'elle appelle.
+
+## Tally assistant : valider une machine que Noar n'a pas
+
+Settings > Tally > **Tally assistant** (`src/dock.html`, constantes `TA_*`).
+Il guide l'utilisateur dans un protocole court, en lecture seule (c'est
+l'utilisateur qui bouge les sources sur sa machine) :
+
+1. prérequis (modèle, adresse, entrée choisie, tally allumé : le tally démarre coupé) ;
+2. test de connexion (`/api/tally/test`) ;
+3. le modèle lu est-il le bon (+ firmware) ; les noms d'entrées sont-ils les bons ;
+4. entrée à l'antenne (PGM), en preview (PVW), nulle part : le dock affiche
+   en direct ce qu'il lit et le délai de détection ;
+5. cas facultatifs : key / overlay / layer, sorties secondaires (quelles
+   sorties comptent comme à l'antenne), machine coupée puis rebranchée
+   (mesuré par l'appli : temps pour la perdre, pour la retrouver) ;
+6. remarques libres, puis le **rapport** : texte à copier, à enregistrer
+   (`GET /api/tally/report/download`) ou à coller dans une issue GitHub
+   (le bouton ouvre une issue vide et copie le rapport).
+
+Le rapport est fabriqué par `src/tally/report.js` (`POST /api/tally/report`,
+ce PC seulement). Il contient la version, le système, le modèle et le driver,
+le résultat de chaque étape, et la réponse brute de la machine (même lecture
+que `/api/tally/debug`, décochable). Il ne contient jamais : le mot de passe,
+l'adresse tapée dans Settings (devient `<address>`), les adresses IP
+privées (`x.x.x.x`). Les noms d'entrées y sont (utiles pour corriger un
+driver). L'utilisateur le relit avant de l'envoyer ; rien n'est envoyé par
+l'appli. Tests : `test/tally-report.test.js`.
+
+Pour valider une machine à partir d'un rapport : le résultat de chaque étape
+dit ce qui marche ; la réponse brute permet de corriger le driver sans la
+machine (en reconstruisant une fausse machine pour `test/tally-drivers.test.js`).
+
 ## Ajouter une machine
 
 1. Lire le protocole (module Bitfocus Companion de la machine, sous licence
@@ -79,7 +148,8 @@ machine  --(son protocole)-->  drivers/xxx.js  --(image commune)-->  index.js (m
 5. Écrire son test dans `test/tally-drivers.test.js` : une fausse machine qui
    répond comme la vraie et note tout ce qu'elle reçoit ; vérifier l'image
    commune et `assertAllRead(...)`.
-6. Mettre à jour ce fichier, `README.md`, `GUIDE.txt`, `THIRD_PARTY_LICENSES.md`.
+6. Renouveler `test/fixtures/tally-rules.json` (voir « Listes de lecture verrouillées »).
+7. Mettre à jour ce fichier, `README.md`, `GUIDE.txt`, `THIRD_PARTY_LICENSES.md`.
 
 ## Le Scan (choix de Noar, 2.2.1)
 
@@ -110,7 +180,9 @@ documentations ; **aucune n'a encore été testée sur du vrai matériel**
   avec un contenu (les commandes ATEM en ont toutes un).
 - Lu : `_pin` (modèle), `InPr` (inputs : id, nom ; seuls les inputs externes
   sont listés), `TlSr` (tally par source, calculé par l'ATEM : bit 0 PGM,
-  bit 1 PVW), `InCm` (fin de l'état initial).
+  bit 1 PVW), `AuxS` (sortie aux n → source : « Aux n », 2.3.0), `_ver`
+  (identité), `InCm` (fin de l'état initial). Rien de plus n'est envoyé pour
+  les aux : l'ATEM les donne dans son état.
 - Scan : **non scanné** (un hello ouvrirait une session sur tout appareil qui
   écoute ce port) : à choisir dans la liste.
 - À vérifier : que `TlSr` compte les keys / DSK / SuperSource (très probable,
@@ -145,7 +217,8 @@ documentations ; **aucune n'a encore été testée sur du vrai matériel**
 - Lu : les inputs (`key`, `number`, `title`), `<active>` / `<preview>` (Mix 1),
   les overlays (`<overlay number="n">input</overlay>`, `preview="True"`).
   Un input est identifié par sa `key` (son numéro change quand on déplace les
-  inputs). Les Mix 2 à 16 ne comptent pas comme antenne.
+  inputs). Les Mix 2 à 16 (`<mix number="n">`) sont des sorties à part
+  (« Mix n », 2.3.0) : elles comptent sauf si on les décoche.
 - Source : `companion-module-studiocoast-vmix`, doc TCP API de vMix.
 
 ### TriCaster / Viz Vectar (`tricaster`)

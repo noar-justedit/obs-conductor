@@ -1,6 +1,8 @@
 node_modules/
 dist/
 dist_installer/
+# a run from the sources (npm start): its own settings, never published
+dev-data/
 build/
 .DS_Store
 # your signing settings (build_mac.command): stay on your Mac

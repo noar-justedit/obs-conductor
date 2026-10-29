@@ -27,6 +27,7 @@ const http = require('http');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 const auth = require('./auth');
+const mc = require('./master-client');
 
 const CHECK_EVERY_MS = 30000;
 const INSTALL_WAIT_MS = 2 * 60 * 1000;
@@ -94,23 +95,22 @@ class Updater {
     this._checking = true;
     this._checkAt = Date.now();
     try {
-      let j;
-      try { j = await getJson(m, '/api/update/info'); }
-      catch (e) {
-        if (e.status !== 404) throw e;
-        // a master older than 1.3.0: only its version
-        const w = await getJson(m, '/api/whoami');
-        j = { version: w.version, installer: null };
-      }
+      // signed, and the answer checked: only the real master offers an update (2.3.0)
+      const j = await mc.getJson(m, '/api/update/info', { timeout: 5000 });
       // the installer is offered only if the master sealed it with its password
       let inst = j.installer || null;
       if (inst && !auth.sealOk(m.password, auth.updateText(j.version, inst), inst.seal)) inst = null;
+      // no OBS password on the master: its seal proves nothing, and a version
+      // must look like one (it goes into a file name) (review 2.2.2)
+      if (inst && (!m.password || !/^\d+\.\d+\.\d+$/.test(String(j.version || '')))) inst = null;
       const unsealed = !!j.installer && !inst;
       // masters before 2.0 don't say their system: they were all Windows
       const otherOs = (j.platform || 'win32') !== this.platform;
       if (otherOs || this.platform !== 'win32') inst = null;
       this.remote = { version: j.version || null, installer: inst, host: m.host, at: Date.now(), unsealed: unsealed && !otherOs, other_os: otherOs };
-    } catch (_) {
+    } catch (e) {
+      // refused answer (wrong password, old master, another machine): said, no update
+      if (e instanceof mc.MasterError && e.kind !== 'error') this.remote = { version: null, installer: null, host: m.host, at: Date.now(), unsealed: true, refused: e.message };
       // master not reachable: keep what we knew
     } finally { this._checking = false; }
     return this.remote;
@@ -148,11 +148,14 @@ class Updater {
     await this.check(true);
     const r = this.remote;
     if (!m || !r || !r.installer || compare(r.version, this.version) <= 0) {
-      this.job = { phase: 'error', error: r && r.unsealed ? 'The master\'s installer could not be checked (wrong password?): link the master again'
+      this.job = { phase: 'error', error: r && r.refused ? r.refused.charAt(0).toUpperCase() + r.refused.slice(1) : r && r.unsealed ? 'The master\'s installer could not be checked (wrong password?): link the master again'
                                                         : 'No newer version on the master' };
       return;
     }
-    const file = path.join(os.tmpdir(), `OBSConductor-Setup-${r.version}.exe`);
+    // a folder of its own, made for this download: no other program can have
+    // put a file there under that name (review 2.2.2)
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'obsconductor-update-'));
+    const file = path.join(dir, `OBSConductor-Setup-${r.version}.exe`);
     try {
       this.job = { phase: 'download', done: 0, total: r.installer.size, version: r.version };
       this.log.info(`Update: downloading v${r.version} from the master`);
@@ -166,6 +169,8 @@ class Updater {
         this.job = { phase: 'done', version: r.version, simulated: true };
         return;
       }
+      // checked again just before it starts: the file is the one that was checked
+      if (await sha256File(file) !== r.installer.sha256) throw new Error('The file changed before it could start. Try again.');
       await this.launch(file);
       this.log.info(`Update: installer v${r.version} started`);
       this.job = { phase: 'installing', version: r.version, at: Date.now() };
@@ -178,6 +183,13 @@ class Updater {
   cancel() { if (this.req) this.req.destroy(new Error('Cancelled')); }
 }
 
+function sha256File(file) {
+  return new Promise((resolve, reject) => {
+    const h = crypto.createHash('sha256');
+    fs.createReadStream(file).on('data', c => h.update(c)).on('end', () => resolve(h.digest('hex'))).on('error', reject);
+  });
+}
+
 function request(m, pathname, signed) {
   return new Promise((resolve, reject) => {
     const headers = signed ? { [auth.HEADER]: auth.sign(m.password, pathname) } : {};
@@ -185,15 +197,6 @@ function request(m, pathname, signed) {
     req.on('timeout', () => req.destroy(new Error('the master does not answer')));
     req.on('error', reject);
   });
-}
-
-async function getJson(m, pathname) {
-  const res = await request(m, pathname, false);
-  let b = '';
-  res.setEncoding('utf8');
-  for await (const c of res) b += c;
-  if (res.statusCode >= 400) { const e = new Error(`master answered HTTP ${res.statusCode}`); e.status = res.statusCode; throw e; }
-  return JSON.parse(b);
 }
 
 async function download(m, pathname, file, onChunk, onReq) {
@@ -225,7 +228,7 @@ async function download(m, pathname, file, onChunk, onReq) {
  */
 function launchInstaller(file) {
   return new Promise((resolve, reject) => {
-    const q = s => `'${String(s).replace(/'/g, "''")}'`;
+    const q = s => `'${String(s).replace(/['\u2018\u2019\u201A\u201B]/g, '$&$&')}'`;
     const cmd = `Start-Process -FilePath ${q(file)} -ArgumentList '/S','/UPDATE=1'`;
     const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', cmd], { windowsHide: true });
     let err = '';

@@ -21,7 +21,10 @@ Windows · macOS · Linux — free and open source (GPL-3.0).
 - **Master / slave** — a slave finds the master on the network by itself (only
   its password to type) and follows it live: same scene at the same time, same
   transition, same media actions (play / pause / restart…). Its status is
-  always on screen: FOLLOWING MASTER, FREE RUN or DISCONNECTED.
+  always on screen: FOLLOWING MASTER, FREE RUN or DISCONNECTED. The slave checks
+  every answer of the master (sealed with the master's OBS password): master
+  and slaves must all run 2.3.0 or newer, with a WebSocket password in the
+  master's OBS.
 - **Sync** — a slave copies the master's media files (through the app itself,
   no network share), its OBS settings (canvas, FPS, colour, audio) and its scene
   collection, with the sources' positions and sizes. AUTO SYNC does it by itself
@@ -36,6 +39,8 @@ Windows · macOS · Linux — free and open source (GPL-3.0).
   a switcher (details: [docs/TALLY-DEVICES.md](docs/TALLY-DEVICES.md)).
   The tally is in **beta**: it starts cut, and a **STOP TALLY** button cuts it in
   one click (nothing is sent to any switcher any more).
+  A **Tally assistant** (Settings > Tally) guides you through a short test of your
+  switcher and gives you a report to send back, so new machines can be validated.
 - **Lock mode**, playlists saved to files (`.obsplaylist`), works without
   internet, reconnects on its own when OBS restarts.
 
@@ -58,7 +63,7 @@ Download the file for your system from the
 | System | File | |
 |---|---|---|
 | Windows 10 / 11 (64-bit) | `OBSConductor-Setup-X.Y.Z.exe` | Double-click. The installer is not signed: *Windows protected your PC* → *More info* → *Run anyway*. Options: start with Windows, firewall rules for master / slave. |
-| macOS 11 or newer (Apple Silicon and Intel) | `OBSConductor-X.Y.Z-mac.dmg` | Drag *OBS Conductor* to *Applications*, open it. Signed and notarized. It has no window and no Dock icon: its interface is the dock in OBS, plus an icon in the menu bar (state, Quit). Accept the incoming connections if macOS asks (needed for master / slave). |
+| macOS 11 or newer, Apple Silicon (M1 and newer) | `OBSConductor-X.Y.Z-mac.dmg` | Drag *OBS Conductor* to *Applications*, open it. Signed and notarized. It has no window and no Dock icon: its interface is the dock in OBS, plus an icon in the menu bar (state, Quit). Accept the incoming connections if macOS asks (needed for master / slave). |
 | Linux x86_64: Debian, Ubuntu, Pop!_OS, Mint… | `obs-conductor_X.Y.Z_amd64.deb` | `sudo apt install ./obs-conductor_X.Y.Z_amd64.deb`, then *OBS Conductor* in the applications menu. |
 | Linux x86_64: any distribution | `OBSConductor-X.Y.Z-x86_64.AppImage` | `chmod +x` it and run it. |
 
@@ -73,7 +78,8 @@ Then:
    masters found on the network: click one, type its password (shown on the
    master in Settings → WebSocket server).
 
-Start with the computer: the Windows installer does it (option). macOS:
+Start with the computer: the Windows installer does it (option, for every user
+of the PC). macOS:
 *System Settings → General → Login Items → +* → OBS Conductor. Linux: add
 *OBS Conductor* to your desktop's startup applications.
 
@@ -96,13 +102,14 @@ only; elsewhere the dock says when a newer version is available.
 ## Build
 
 Nothing to install beforehand: each script downloads the official Node.js
-runtime (checked against nodejs.org's fingerprints), runs the tests, then
-builds into `dist/`.
+runtime (checked against nodejs.org's fingerprints), runs the tests (when the
+`test/` folder is there: it is not published on GitHub), then builds into `dist/`.
 
 | On | Script | Builds |
 |---|---|---|
-| Mac | `build_mac.command` | `OBSConductor-X.Y.Z-mac.dmg` — universal app, signed with your *Developer ID Application* certificate and notarized (needs Xcode's command line tools: `xcode-select --install`) |
+| Mac | `build_mac.command` | `OBSConductor-X.Y.Z-mac.dmg` — Apple Silicon app, signed with your *Developer ID Application* certificate and notarized (needs Xcode's command line tools: `xcode-select --install`) |
 | Mac | `build_windows.command` | `OBSConductor-Setup-X.Y.Z.exe` — NSIS installer (`brew install makensis`, offered by the script) |
+| Windows | `build_windows.bat` | The same installer, built on a Windows PC (needs NSIS: offered through winget; Node.js is downloaded by the script) |
 | Linux x86_64 | `build_linux.sh` | `.deb` and `.AppImage` |
 
 From the sources (Node.js 22 or newer):
@@ -111,27 +118,24 @@ From the sources (Node.js 22 or newer):
 npm install
 npm start            # drives the local OBS
 npm run simulate     # fake OBS, to try the dock without OBS
-npm test
 ```
 
 The dock is then at `http://localhost:8090/` (add it in OBS: *Docks → Custom
-Browser Docks*).
+Browser Docks*). Run from the sources, the app keeps its settings and playlists
+in `dev-data/` (created from the templates in `config/`, never published).
 
 ## Project files
 
-- `ETAT_PROJET.md` — state, architecture, decisions, known issues, where the
-  version number lives (in French).
 - `CHANGELOG.md` — versions.
-- `AGENTS.md` — working rules for any AI picking the project up.
-- `scripts/push_github.command` — publishes a release folder to this
-  repository.
+- `GUIDE.txt` — every function of the dock.
+- `docs/TALLY-DEVICES.md` — the tally machines and what is read from each (in French).
 - `scripts/make_icons.py` — rebuilds the icons.
 
 ## License
 
 OBS Conductor is free software under the **GNU General Public License v3.0
 or later** — see [LICENSE](LICENSE). Included third-party works (Node.js,
-the *yaml* library, the Poppins and Oswald typefaces, Lucide icons) and their
+the *yaml* library, the Poppins typeface, Lucide icons) and their
 licences: [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
 
 OBS Studio is a trademark of its owners. OBS Conductor is an independent tool,

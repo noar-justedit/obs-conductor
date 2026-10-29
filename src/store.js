@@ -240,7 +240,9 @@ class Store {
     return { device: String(t.device || (host ? 'pixelhue' : '')).trim(), host,
              port: parseInt(t.port, 10) || null, api_port: parseInt(t.api_port, 10) || null,
              user: String(t.user || ''), password: String(t.password || ''),
-             input: String(t.input || '').trim(), input_name: String(t.input_name || '').trim() };
+             input: String(t.input || '').trim(), input_name: String(t.input_name || '').trim(),
+             // outputs that do NOT count as on air (2.3.0: all count unless unticked)
+             exclude_outputs: Array.isArray(t.exclude_outputs) ? t.exclude_outputs.map(String).slice(0, 64) : [] };
   }
 
   /** The same, as shown to the dock: the password never leaves this PC. */
@@ -267,6 +269,9 @@ class Store {
     if (b.dashboard) {
       if (b.dashboard.port != null && parseInt(b.dashboard.port, 10)) {
         const port = parseInt(b.dashboard.port, 10);
+        // a port the app can't open would stop it from starting (and the dock
+        // with it): refused here (review 2.2.2)
+        if (!(port >= 1024 && port <= 65535)) throw new Error('Dock port: 1024 to 65535');
         // the dock in OBS points at the port: added again with the new one
         // the next time OBS is closed (main.js)
         if (port !== (parseInt((this.settings().dashboard || {}).port, 10) || 8090)) this._set(['obs_hooked'], false);
@@ -288,11 +293,17 @@ class Store {
         this._set(['tally', 'device'], String(t.device).trim());
         this._set(['tally', 'input'], ''); this._set(['tally', 'input_name'], '');
         this._set(['tally', 'port'], null);
+        // the login of one machine is never sent to another (review 2.2.2)
+        this._set(['tally', 'user'], ''); this._set(['tally', 'password'], '');
+        // another machine, other outputs: they all count again
+        this._set(['tally', 'exclude_outputs'], []);
       }
       // an address is a name or an IP, nothing else (it goes into URLs)
       if (t.host != null) {
         const h = String(t.host).trim();
         if (h && !/^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$/.test(h)) throw new Error('switcher address: an IP or a name only');
+        // another machine: its password is asked again (review 2.2.2)
+        if (h.toLowerCase() !== cur.host.toLowerCase()) this._set(['tally', 'password'], '');
         this._set(['tally', 'host'], h);
       }
       if (t.port !== undefined) {
@@ -303,6 +314,9 @@ class Store {
       if (typeof t.password === 'string') this._set(['tally', 'password'], t.password);
       if (t.input != null) this._set(['tally', 'input'], String(t.input).trim());
       if (t.input_name != null) this._set(['tally', 'input_name'], String(t.input_name).trim());
+      if (Array.isArray(t.exclude_outputs)) {
+        this._set(['tally', 'exclude_outputs'], [...new Set(t.exclude_outputs.map(x => String(x).trim().slice(0, 80)).filter(Boolean))].slice(0, 64));
+      }
     }
     if (b.default_duration != null) {
       const d = P.cleanDuration(b.default_duration);

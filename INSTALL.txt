@@ -15,7 +15,7 @@ github.com/noar-justedit/obs-conductor/releases
 
    Sur le Mac
       build_mac.command      -> OBSConductor-X.Y.Z-mac.dmg
-                                (Apple Silicon + Intel, macOS 11 et plus,
+                                (Apple Silicon, macOS 11 et plus,
                                 signé et notarisé)
          Il faut les outils de ligne de commande de Xcode :
          xcode-select --install
@@ -26,6 +26,9 @@ github.com/noar-justedit/obs-conductor/releases
       build_windows.command  -> OBSConductor-Setup-X.Y.Z.exe
          Il faut NSIS (le fabricant d'installeur) : le script propose de
          l'installer avec Homebrew (brew install makensis).
+      Sur un PC Windows : build_windows.bat (double-clic) -> le même
+         installeur. Il faut NSIS : le script propose de l'installer avec
+         winget ; Node.js est téléchargé et vérifié par le script.
 
    Sur le PC Linux (64 bits)
       ./build_linux.sh       -> obs-conductor_X.Y.Z_amd64.deb
@@ -40,7 +43,10 @@ github.com/noar-justedit/obs-conductor/releases
       « Informations complémentaires » puis « Exécuter quand même »
       (l'installeur n'est pas signé).
       Laisser les 2 cases cochées : lancer OBS Conductor au démarrage de
-      Windows, autoriser les autres PC du réseau (maître / esclave).
+      Windows (pour tous les comptes du PC), autoriser les autres PC du
+      réseau (maître / esclave).
+      Maître et esclaves : tous en 2.3.0 ou plus (un esclave refuse un
+      maître plus ancien), et un mot de passe WebSocket dans l'OBS du maître.
       L'icône de l'appli est près de l'horloge (parfois sous la flèche ^).
 
    macOS

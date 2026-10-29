@@ -56,8 +56,10 @@ function hostAllowed(req, app) {
   if (LOOPBACK_NAMES.includes(h) || (app.ips || []).includes(h)) return true;
   // an address this PC got since the app started (DHCP, new network card)
   for (const list of Object.values(os.networkInterfaces())) for (const i of list || []) if (i.address.toLowerCase() === h) return true;
-  const pc = os.hostname().toLowerCase();
-  return h === pc || h.split('.')[0] === pc;
+  // this PC's name, alone or with a local suffix only: "regie-1.attacker.com"
+  // pointed at this PC by a web page (DNS rebinding) is refused (review 2.2.2)
+  const pc = os.hostname().toLowerCase().replace(/\.local$/, '');
+  return h === pc || ['local', 'lan', 'home', 'localdomain', 'home.arpa', 'internal'].some(s => h === `${pc}.${s}`);
 }
 function changeAllowed(req) {
   if (!isLocal(req)) return 'changes are made from this PC only (its dock in OBS)';
@@ -105,15 +107,29 @@ function startServer(app, port, bind) {
   const signed = (req, url) => auth.verify(req.headers[auth.HEADER], localWebsocket(app).password, url.pathname + url.search);
 
   const send = (res, code, body, type) => {
-    res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store', 'Content-Length': Buffer.byteLength(body) });
+    const headers = { 'Content-Type': type, 'Cache-Control': 'no-store', 'Content-Length': Buffer.byteLength(body) };
+    // a slave's signed request: the answer is sealed with this PC's OBS
+    // password, the slave checks it before using it (auth.js, 2.3.0)
+    if (res.ocRequestSig && /json/.test(type)) headers[auth.RESP_HEADER] = auth.sealAnswer(localWebsocket(app).password, res.ocRequestSig, body);
+    res.writeHead(code, headers);
     res.end(body);
   };
   const json = (res, payload, code = 200) => send(res, code, JSON.stringify(payload), 'application/json');
 
+  // bytes first, text at the end: an accented letter cut between two chunks
+  // stays whole (review 2.2.2). Too big: answered 413, not left hanging.
+  const MAX_BODY = 5e6;
+  const TOO_BIG = Symbol('too big');
+  let slaveScan = null;   // the network scan running now (shared)
   const readBody = req => new Promise(resolve => {
-    let raw = '';
-    req.on('data', c => { raw += c; if (raw.length > 5e6) req.destroy(); });
-    req.on('end', () => { try { resolve(raw ? JSON.parse(raw) : {}); } catch (_) { resolve(null); } });
+    const parts = []; let size = 0, over = false;
+    req.on('data', c => { if (over) return; size += c.length; if (size > MAX_BODY) { over = true; parts.length = 0; } else parts.push(c); });
+    req.on('end', () => {
+      if (over) return resolve(TOO_BIG);
+      const raw = Buffer.concat(parts).toString('utf8');
+      try { resolve(raw ? JSON.parse(raw) : {}); } catch (_) { resolve(null); }
+    });
+    req.on('error', () => resolve(null));
   });
 
   async function get(url, req, res) {
@@ -127,14 +143,18 @@ function startServer(app, port, bind) {
         res.writeHead(200, { 'Content-Type': 'image/x-icon', 'Cache-Control': 'max-age=86400', 'Content-Length': ico.length });
         return res.end(ico);
       }
-      case '/fonts/Poppins-Bold.ttf':      // the family logo font (SIL OFL, fonts/Poppins-OFL.txt)
-      case '/fonts/Oswald.ttf': {          // the ON AIR sign (SIL OFL, fonts/Oswald-OFL.txt)
+      case '/fonts/Poppins-Bold.ttf': {    // the family logo font (SIL OFL, fonts/Poppins-OFL.txt)
         const font = fs.readFileSync(path.join(__dirname, 'fonts', path.basename(url.pathname)));
         res.writeHead(200, { 'Content-Type': 'font/ttf', 'Cache-Control': 'max-age=86400', 'Content-Length': font.length });
         return res.end(font);
       }
-      case '/api/state':
-        return json(res, app.state());
+      case '/api/state': {
+        // read by the slaves too: the switcher's address and the tally's error
+        // text (it names the address) stay on this PC (review 2.2.2)
+        const st = app.state();
+        if (!isLocal(req) && st.tally) st.tally = { ...st.tally, host: '', error: st.tally.error ? 'switcher not reachable' : null };
+        return json(res, st);
+      }
       case '/api/scenes':
         try { return json(res, { scenes: await OBS.listScenes(app.client) }); }
         catch (e) { return json(res, { scenes: [], error: e.message }, 502); }
@@ -152,9 +172,12 @@ function startServer(app, port, bind) {
       }
       case '/api/playlists':
         return json(res, { names: store.listPlaylists(), active: store.activePlaylistName() });
-      case '/api/settings':
-        return json(res, { ...store.generalSettings(), version: app.version, local_ips: app.ips,
-                           simulated: app.simulate });
+      case '/api/settings': {
+        const g = store.generalSettings();
+        // the switcher's address and login stay on this PC (review 2.2.2)
+        if (!isLocal(req)) g.tally = { ...g.tally, host: '', user: '' };
+        return json(res, { ...g, version: app.version, local_ips: app.ips, simulated: app.simulate });
+      }
       case '/api/whoami': {
         // read by the slaves' network scan
         return json(res, { app: 'obs-conductor', version: app.version, name: os.hostname(), role: store.role(),
@@ -190,38 +213,43 @@ function startServer(app, port, bind) {
         return json(res, { devices: require('./tally/index').catalog() });
       case '/api/tally/inputs':
         // Settings > Tally: the switcher's inputs [{id, name}], to pick this OBS's one
+        // (this PC only: another PC can't make this one connect, review 2.2.2)
+        if (!isLocal(req)) return json(res, { error: 'this PC only' }, 403);
         try {
           const r = await app.tally.inputs();
           // the input named like this PC, preselected when none is chosen yet
           return json(res, { ...r, suggest: require('./tally/index').suggestInput(r.inputs, os.hostname()), pc: os.hostname() });
         }
         catch (e) { return json(res, { inputs: [], error: `not reachable: ${e.message}` }, 502); }
-      case '/api/tally/scan':
-        // Settings > Tally > Scan: the switchers on this PC's network (reads
-        // only, on demand: the button), from this PC only
-        if (!isLocal(req)) return json(res, { error: 'this PC only' }, 403);
-        if (require('./tally/guard').isCut()) return json(res, { error: 'the tally is stopped: turn it on first' }, 409);
-        if (app.simulate) { await new Promise(r => setTimeout(r, 1200)); return json(res, { found: require('./tally/index').FAKE_SCAN }); }
-        return json(res, { found: await require('./tally/index').scan() });
-      case '/api/tally/test':
-        // Settings > Tally > Test connection: connects again from scratch and
-        // reads (never writes: every message goes through tally/guard.js)
-        if (!isLocal(req)) return json(res, { error: 'this PC only' }, 403);
-        return json(res, await app.tally.test());
       case '/api/tally/debug':
         // what the switcher answers, raw: to send when the tally looks wrong
         if (!isLocal(req)) return json(res, { error: 'this PC only' }, 403);
         try { return json(res, await app.tally.debug()); }
         catch (e) { return json(res, { error: e.message }, 502); }
+      case '/api/tally/report/download': {
+        // Tally assistant: the last report, as a text file (the user posts it himself)
+        if (!isLocal(req)) return json(res, { error: 'this PC only' }, 403);
+        const body = app.tallyReport || '';
+        if (!body) return json(res, { error: 'no report yet' }, 404);
+        res.writeHead(200, {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="obs-conductor-tally-report.txt"',
+          'Content-Length': Buffer.byteLength(body),
+        });
+        return res.end(body);
+      }
       case '/api/tray':
         if (!isLocal(req)) return json(res, { error: 'this PC only' }, 403);
         return json(res, app.trayInfo(parseInt(q.get('since'), 10) || 0));
       case '/api/slave/scan': {
+        // this PC's dock only, one scan at a time (review 2.2.2)
+        if (!isLocal(req)) return json(res, { error: 'this PC only' }, 403);
         if (app.simulate) {
           await new Promise(r => setTimeout(r, 1200));
           return json(res, FAKE_NETWORK);
         }
-        return json(res, await discovery.scan());
+        if (!slaveScan) slaveScan = discovery.scan().finally(() => { slaveScan = null; });
+        return json(res, await slaveScan);
       }
       case '/api/playlist': {
         const name = q.get('name') || store.activePlaylistName();
@@ -316,7 +344,12 @@ function startServer(app, port, bind) {
     // and cutting the tally (STOP TALLY must always work)
     const panicCut = p === '/api/tally/panic' && body && body.cut === true;
     if (store.locked() && p !== '/api/lock' && p !== '/api/app/quit' && !panicCut) {
-      return json(res, { error: 'locked - unlock first (padlock at the top)' }, 423);
+      return json(res, { error: 'locked - unlock first (padlock)' }, 423);
+    }
+    // playlist names: compared and stored as their file name ("Show!" is the
+    // playlist "Show"), so the "on air" checks can't be dodged (review 2.2.2)
+    if (p.startsWith('/api/playlist') || p === '/api/active_playlist') {
+      for (const k of ['name', 'old', 'new']) if (typeof body[k] === 'string') body[k] = Store.safeName(body[k]);
     }
     const slave = store.role() === 'slave';
     // A slave is driven by its master: nothing that changes playback here.
@@ -351,7 +384,9 @@ function startServer(app, port, bind) {
       case '/api/playlist/rename': {
         const oldName = body.old, newName = Store.safeName(body.new);
         if (!oldName || !newName || !store.exists(oldName)) return json(res, { error: 'invalid name' }, 400);
-        if (store.exists(newName)) return json(res, { error: `a playlist named "${newName}" already exists` }, 409);
+        // capitals only ("show" -> "Show"): the same file on Windows / macOS, allowed
+        if (store.exists(newName) && newName.toLowerCase() !== oldName.toLowerCase()) return json(res, { error: `a playlist named "${newName}" already exists` }, 409);
+        if (newName === oldName) return json(res, { ok: true, name: newName });
         if (app.isPlaying() && oldName === store.activePlaylistName()) {
           return json(res, { error: 'stop playback before renaming the playlist on air' }, 409);
         }
@@ -422,6 +457,37 @@ function startServer(app, port, bind) {
       case '/api/error/clear':
         app.lastError = null;
         return json(res, { ok: true });
+      case '/api/tally/scan':
+        // Settings > Tally > Scan: the switchers on this PC's network (reads
+        // only, on demand: the button), from this PC only. POST (review
+        // 2.2.2): a web page can't start it, and lock mode stops it.
+        if (require('./tally/guard').isCut()) return json(res, { error: 'the tally is stopped: turn it on first' }, 409);
+        if (app.simulate) { await new Promise(r => setTimeout(r, 1200)); return json(res, { found: require('./tally/index').FAKE_SCAN }); }
+        return json(res, { found: await require('./tally/index').scan() });
+      case '/api/tally/test':
+        // Settings > Tally > Test connection: connects again from scratch and
+        // reads (never writes: every message goes through tally/guard.js).
+        // POST (review 2.2.2): a web page can't drop the live tally with it.
+        return json(res, await app.tally.test());
+      case '/api/tally/report': {
+        // Tally assistant: builds the test report (text). Reads the switcher
+        // once more for its raw answer (reads only, like /api/tally/debug);
+        // the password and every address are hidden (tally/report.js).
+        if (!isLocal(req)) return json(res, { error: 'this PC only' }, 403);
+        const tl = require('./tally/index'), report = require('./tally/report');
+        const c = store.tallyConfig(), snap = app.tally.snapshot();
+        let dbg = null, dbgErr = '';
+        if (body.include_raw !== false) { try { dbg = await app.tally.debug(); } catch (e) { dbgErr = e.message; } }
+        const d = tl.BY_ID[c.device];
+        const text = report.build({
+          version: app.version, platform: process.platform, arch: process.arch, date: new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC',
+          device: d ? { id: d.id, label: d.label } : null, port: c.port || null, has_password: !!c.password,
+          model: snap.model, input_count: dbg && Array.isArray(dbg.inputs) ? dbg.inputs.length : null,
+          cfg: { host: c.host, password: c.password }, debug: dbg, debug_error: dbgErr, excluded: c.exclude_outputs,
+        }, body);
+        app.tallyReport = text;
+        return json(res, { text });
+      }
       case '/api/tally/panic':
         // STOP TALLY (Noar): cut / turn on the whole tally. Cut: nothing is sent to
         // any switcher any more (tally/guard.js); OBS and master / slave go on
@@ -520,7 +586,7 @@ function startServer(app, port, bind) {
     const name = url.searchParams.get('name');
     if (!name) return json(res, { error: "missing 'name'" }, 400);
     if (store.role() === 'slave') return json(res, { error: 'this machine is a slave' }, 409);
-    if (store.locked()) return json(res, { error: 'locked - unlock first (padlock at the top)' }, 423);
+    if (store.locked()) return json(res, { error: 'locked - unlock first (padlock)' }, 423);
     if (name === store.activePlaylistName() && app.isPlaying()) {
       return json(res, { error: 'stop playback before deleting the playlist on air' }, 409);
     }
@@ -535,6 +601,8 @@ function startServer(app, port, bind) {
   }
 
   const server = http.createServer(async (req, res) => {
+    const reqSig = req.headers[auth.HEADER];
+    if (typeof reqSig === 'string' && reqSig.length < 300) res.ocRequestSig = reqSig;
     const url = new URL(req.url, 'http://localhost');
     try {
       if (!hostAllowed(req, app)) return json(res, { error: 'unknown address' }, 421);
@@ -546,7 +614,8 @@ function startServer(app, port, bind) {
       if (req.method === 'DELETE') return del(url, res);
       if (req.method === 'POST') {
         const body = await readBody(req);
-        if (body === null) return json(res, { error: 'invalid JSON' }, 400);
+        if (body === TOO_BIG) return json(res, { error: 'too big' }, 413);
+        if (body === null || typeof body !== 'object') return json(res, { error: 'invalid JSON' }, 400);
         return await post(url, body, req, res);
       }
       json(res, { error: 'method not allowed' }, 405);

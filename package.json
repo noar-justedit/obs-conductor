@@ -1,6 +1,6 @@
 {
   "name": "obs-conductor",
-  "version": "2.2.1",
+  "version": "2.3.0",
   "private": true,
   "description": "OBS Conductor - playlist dock for OBS Studio, with master / slave mode (Windows, macOS, Linux)",
   "license": "GPL-3.0-or-later",

@@ -54,6 +54,13 @@ class Session {
     if (this._closed) { s.close(); throw new Error('closed'); }
     this.rxAt = Date.now();
     s.send('?\n');
+    // identity (2.3.0): the unit answers "?" with its type (DEVn) before any tally is asked
+    for (let w = 0; w < 30 && !this.model && this.sock === s; w++) await new Promise(r => setTimeout(r, 100));
+    if (!this.model) {
+      if (this.sock === s) this.sock = null;
+      s.close();
+      const e = new Error('this machine doesn\'t answer like an Analog Way LiveCore unit: nothing else is read'); e.permanent = true; throw e;
+    }
     this._askAll();
   }
 

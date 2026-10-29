@@ -2,7 +2,9 @@
 /*
  * Where config and playlists live.
  *
- * Development (`node src/main.js`): config/ next to the sources.
+ * Development (`node src/main.js`): dev-data/ next to the sources, seeded from
+ * config/ (2.3.0: config/ stays the clean template of every install, a run
+ * from the sources never writes its role or passwords into it).
  * Installed: the program folder is read-only, so config lives in the user's
  * own folder, seeded on first run from the templates the build put in
  * <app>/config_template:
@@ -34,7 +36,7 @@ function systemDataDir(platform = process.platform, env = process.env, home = os
 function userDataDir() {
   // tests / screenshots: a throw-away folder instead of the project's config/
   if (process.env.OBSCONDUCTOR_DATA_DIR) { fs.mkdirSync(process.env.OBSCONDUCTOR_DATA_DIR, { recursive: true }); return process.env.OBSCONDUCTOR_DATA_DIR; }
-  if (!isPackaged()) return ROOT;
+  if (!isPackaged()) { const d = path.join(ROOT, 'dev-data'); fs.mkdirSync(d, { recursive: true }); return d; }
   const d = systemDataDir();
   // Windows, first run after a rename: the settings and playlists of the app
   // under its former name are copied over (the old folder is left untouched).
@@ -50,9 +52,8 @@ function userDataDir() {
 const settingsPath = () => path.join(userDataDir(), 'config', 'settings.yaml');
 const playlistsDir = () => path.join(userDataDir(), 'config', 'playlists');
 
-/** First run of an installed copy: copy the templates. Never overwrites. */
+/** First run (installed copy, or from the sources): copy the templates. Never overwrites. */
 function ensureDefaultConfig() {
-  if (!isPackaged() && !process.env.OBSCONDUCTOR_DATA_DIR) return;
   const settings = settingsPath();
   fs.mkdirSync(playlistsDir(), { recursive: true });
   const tpl = path.join(ROOT, isPackaged() ? 'config_template' : 'config');

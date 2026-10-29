@@ -2,6 +2,134 @@
 
 Format : [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions X.Y.Z.
 
+## [2.3.0] — 2026-10-29
+
+### Security
+- **Master answers are checked (strict):** the master seals every answer it
+  gives a slave with its OBS password; a slave refuses an answer without a
+  valid seal. Another machine at the master's address can no longer feed a
+  slave a playlist, scenes or media. Master and slaves must all run 2.3.0 or
+  newer, and the master's OBS needs a WebSocket password: the slave dock says
+  so (in orange) when one of them is missing. Scenes are still followed.
+- Slave update: the master's answer is checked the same way.
+
+### Added
+- **Tally: outputs that count.** Every output where the input is seen counts
+  as on air (vMix Mix 2 to 16, ATEM aux outputs, Barco / Aquilon / PixelHue
+  screens and aux...); Settings > Tally lists them, untick the ones that must
+  not light ON AIR / PVW. The test report says which ones are unticked.
+- **Tally: identity first.** Nothing is read from a machine that hasn't said
+  what it is (vMix greeting, ATEM protocol version, TriCaster product name,
+  Barco frame, Aquilon type, LiveCore unit type): another device at that
+  address gets nothing more, and the dock says why.
+- Windows: starting with Windows is for every user of the PC (it went to the
+  account that approved the installer); an older per-user entry is removed.
+- Windows firewall: the OBS WebSocket rule is for OBS itself when it is in its
+  usual folder (any port set in OBS works), port 4455 otherwise.
+- Slave dock: the switch rows (Sync choices, Fallback) work with the keyboard.
+
+### Changed
+- Run from the sources (`npm start`), the app keeps its settings in
+  `dev-data/` (never published): `config/` stays the clean template.
+- Linux build: appimagetool 1.9.1 and the AppImage runtime 20251108, fixed and
+  checked against their SHA-256 (they were the moving "continuous" builds).
+- GitHub push: your git settings are no longer changed; the repository's own
+  default branch is used.
+- Narrow dock with STOP TALLY shown: the logo reads "obs." instead of a cut word.
+- macOS: Apple Silicon only (M1 and newer); no Intel version any more.
+
+### Fixed
+- Mac build: Node.js's licence file is looked for wherever its archive puts it
+  (the build stopped with "LICENSE: No such file or directory").
+
+## [2.2.2] — 2026-10-28
+
+(Includes the work prepared as 2.3.0, never published.)
+
+### Added
+- **Tally assistant** (Settings > Tally): guides you through a short test of
+  your switcher (connection, model, input names, input on air, in preview,
+  nowhere, then optional cases: key / overlay, other outputs, switcher
+  lost and back), then gives you a **report** to copy, save as a file or
+  paste in a GitHub issue. It only reads: you move the sources on the
+  switcher yourself. The report never contains the password or the
+  switcher's address; the input names are in it. It lets users test
+  switchers we don't have and send back what happened.
+  (`src/tally/report.js`, `POST /api/tally/report`)
+- The tally's read lists are now locked by a test
+  (`test/tally-rules.test.js`): a message allowed in addition fails the test
+  until the change is reviewed and the file is renewed on purpose (also
+  what ATEM's and Barco's hand-written rules depend on).
+- `build_windows.bat`: builds the Windows installer on a Windows PC (same
+  result as `build_windows.command` on a Mac).
+
+### Changed
+- Settings > Default scene duration: the same menu as a cue's duration
+  (usual lengths, or Custom).
+- Settings > Media location (slave): two buttons, "Same as master" and
+  "Custom", instead of a switch. "Medias" is now "Media".
+
+### Removed
+- The film button on a cue (a copy of Auto-detect in the duration menu).
+- The Oswald typeface (no longer used).
+
+### Fixed (code review)
+- Security:
+  - Sync: the master's OBS scripts (Lua / Python) are no longer loaded on a
+    slave, and `.lua` / `.luac` / `.pyc` files are no longer written by a
+    media sync: whatever answers at the master's address can't make a slave
+    run a script. Add scripts by hand on a slave if you need them.
+  - Slave update: refused when the master's OBS has no password (its seal
+    proves nothing then); the installer is downloaded into a folder of its
+    own and checked again right before it starts.
+  - Tally: the password is no longer kept when the model or the address
+    changes (it was sent to the new machine); Test connection and Scan are
+    POST requests (a web page can't start them; lock mode stops them); the
+    switcher's address and login are no longer readable from another PC
+    (`/api/state`, `/api/settings`, `/api/tally/inputs`); the rules can't be
+    changed once registered; the test report also hides addresses with a
+    port, CGNAT / Tailscale and IPv6 addresses.
+  - A web page pointing a name like `<this PC>.example.com` at this PC is
+    refused (DNS rebinding).
+  - Windows dialogs: a typographic apostrophe (’) in a folder name broke
+    them and could be misused.
+  - The network scan for masters runs from this PC's dock only, one at a time.
+- Crashes: a malformed message from a fake or broken OBS, or an odd tally
+  answer from a Roland, no longer stops the app.
+- Tally: a Roland connection closed while logging in stayed open; STOP TALLY
+  pressed during a read could start a second polling loop; a model refused
+  for good was still asked every 10 s from Settings; the raw read never goes
+  to this PC when no address is typed.
+- Dock:
+  - a locked slave could not unlock from the dock (padlock unclickable);
+  - clicks on the padlock were sometimes lost;
+  - the input name of the switcher is escaped in the Tally assistant;
+  - slave controls wrap instead of overflowing at 300 px;
+  - "master playlist is empty" when it was only not reachable;
+  - Media location shows its choice at once;
+  - "Tally on" is green only when the switcher is read;
+  - New / Duplicate while playing: created, picked once playback stops;
+  - the input list says "Tally stopped" when it is;
+  - icon buttons have an accessible name;
+  - short words no longer left alone at the end of a line.
+- Big playlists with accented names were saved with broken letters (over
+  64 KB); a request too big now gets an answer.
+- Playlist names: "Show!" is the playlist "Show" everywhere (the on-air
+  checks could be dodged); renaming "show" to "Show" works on Windows / macOS.
+- An impossible dock port (70000, 80) is refused instead of stopping the app
+  at its next start.
+- The fingerprint cache of media files no longer grows with every edit.
+- Windows installer: an update goes to the folder of the previous install
+  (it went to the default folder); the install folder can't be a drive root
+  or a system folder.
+- Builds: refused when `config/settings.yaml` is not the clean template;
+  a broken copy of nodejs.org's fingerprint list is no longer kept; curl is
+  checked; the Mac build says plainly when the .dmg is not notarized.
+- GitHub push: the files for the developer and the AIs only (CLAUDE.md,
+  AGENTS.md, ETAT_PROJET.md, release notes, the push script, the tests) are
+  no longer sent, and are removed from GitHub; a version can only be sent
+  once (then only `version.json`, after the Release).
+
 ## [2.2.1] — 2026-10-15
 
 ### Added

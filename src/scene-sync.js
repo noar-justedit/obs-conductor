@@ -14,6 +14,7 @@
  * a change made in the last second may be missing - sync again.
  */
 
+const mc = require('./master-client');
 const fs = require('fs');
 const crypto = require('crypto');
 const C = require('./collection');
@@ -72,12 +73,9 @@ class SceneSync {
   }
 
   async _fetchFingerprint(cfg) {
-    const p = '/api/scenes/fingerprint';
-    const r = await fetch(`http://${cfg.master_host}:${cfg.master_dashboard_port || 8090}${p}`, {
-      headers: { [auth.HEADER]: auth.sign(cfg.master_obs_password, p) }, signal: AbortSignal.timeout(10000),
-    });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.fingerprint) throw new Error(j.error || `master answered HTTP ${r.status}`);
+    // signed, and the answer checked (master-client.js, 2.3.0)
+    const j = await mc.getJson(mc.masterOf(cfg), '/api/scenes/fingerprint');
+    if (!j.fingerprint) throw new Error('the master sent no fingerprint');
     return j.fingerprint;
   }
 
@@ -105,13 +103,8 @@ class SceneSync {
   }
 
   async _fetchObsSettings(cfg) {
-    const p = '/api/obs/settings';
-    const r = await fetch(`http://${cfg.master_host}:${cfg.master_dashboard_port || 8090}${p}`, {
-      headers: { [auth.HEADER]: auth.sign(cfg.master_obs_password, p) }, signal: AbortSignal.timeout(10000),
-    });
-    if (r.status === 404) return null;                 // master in 1.3.0 or before: nothing to copy
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.video) throw new Error(j.error || `master answered HTTP ${r.status}`);
+    const j = await mc.getJson(mc.masterOf(cfg), '/api/obs/settings');
+    if (!j.video) throw new Error('the master sent no OBS settings');
     return j;
   }
 
@@ -129,15 +122,8 @@ class SceneSync {
   }
 
   async _fetchCollection(cfg) {
-    const p = '/api/scenes/collection';
-    const r = await fetch(`http://${cfg.master_host}:${cfg.master_dashboard_port || 8090}${p}`, {
-      headers: { [auth.HEADER]: auth.sign(cfg.master_obs_password, p) },
-      signal: AbortSignal.timeout(20000),
-    });
-    let j = {};
-    try { j = await r.json(); } catch (_) {}
-    if (r.status === 401) throw new Error('the master refused: wrong password (link the master again)');
-    if (!r.ok || !j.collection) throw new Error(j.error || `master answered HTTP ${r.status}`);
+    const j = await mc.getJson(mc.masterOf(cfg), '/api/scenes/collection', { timeout: 20000 });
+    if (!j.collection) throw new Error('the master sent no scene collection');
     return j;
   }
 
@@ -191,6 +177,15 @@ class SceneSync {
     this.state.phase = 'fetch';
     const j = await this._fetchCollection(cfg);
     const data = C.rewritePaths(j.collection, mappings);
+    // OBS runs the Lua / Python scripts a collection lists when it opens it:
+    // the master's list is never loaded here, so whatever answers at the
+    // master's address can't make this PC run a script (review 2.2.2). The
+    // scripts of this PC's own collection are not touched.
+    let scriptsDropped = 0;
+    if (data && data.modules && data.modules['scripts-tool']) {
+      scriptsDropped = Array.isArray(data.modules['scripts-tool']) ? data.modules['scripts-tool'].length : 1;
+      delete data.modules['scripts-tool'];
+    }
     const name = `${j.name || data.name || 'Master'}${C.SUFFIX}`;
     // what changes at every scene switch doesn't count (collection.fingerprint)
     const hash = C.fingerprint(data);
@@ -211,6 +206,7 @@ class SceneSync {
     this._check();
     this.state.phase = 'load';
     this.log.info(`Scene sync: loading "${name}" (${this.state.scenes} scenes) from ${cfg.master_name || cfg.master_host}`);
+    if (scriptsDropped) this.log.warn(`Scene sync: the master's OBS scripts (${scriptsDropped}) are not copied: add them by hand on this PC if needed`);
     await C.loadIntoObs(this.local, name, data, this.log);
     this.store.setLastSceneSync(hash);
     if (this.state.missing.length) this.log.warn(`Scene sync: ${this.state.missing.length} media file(s) missing here, e.g. ${this.state.missing[0]}`);

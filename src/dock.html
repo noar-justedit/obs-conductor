@@ -24,7 +24,6 @@
   --mono:ui-monospace,'SF Mono','JetBrains Mono',Consolas,monospace;
 }
 @font-face{font-family:'Poppins';src:url('/fonts/Poppins-Bold.ttf') format('truetype');font-weight:700;font-display:swap;}
-@font-face{font-family:'Oswald';src:url('/fonts/Oswald.ttf') format('truetype');font-weight:200 700;font-display:swap;}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--page);color:var(--text);font:12px/1.4 var(--font)}
 body{padding-bottom:10px}
@@ -62,7 +61,9 @@ svg{width:14px;height:14px;flex-shrink:0}
 header{position:sticky;top:0;z-index:5;background:var(--page);padding:8px 8px 6px 10px;display:flex;align-items:center;gap:4px}
 .logo{font-family:'Poppins',var(--font);font-weight:700;font-size:14px;letter-spacing:.02em;text-transform:lowercase;
   color:var(--text);white-space:nowrap;line-height:1.2;min-width:0;overflow:hidden;text-overflow:ellipsis;flex-shrink:1}
-.logo span{color:var(--app)}
+.logo span{color:var(--app)} .logo .lw{color:var(--text)}
+/* narrow dock with STOP TALLY shown: "obs." alone rather than a cut word */
+@media (max-width:340px){ body.tallyon .logo .lw{display:none} }
 .dot{width:8px;height:8px;border-radius:50%;background:var(--text4);flex-shrink:0}
 .dot.ok{background:var(--green)} .dot.bad{background:var(--red)} .dot.warn{background:var(--orange)}
 .badge{font-size:9px;font-weight:700;letter-spacing:.1em;padding:3px 6px;border-radius:var(--r-badge);
@@ -142,7 +143,7 @@ button.syncbadge.on:hover{background:rgba(53,201,139,.24)}
 .slvstatus.follow{background:rgba(53,201,139,.18);color:var(--green)}
 .slvstatus.free{background:rgba(242,160,61,.18);color:var(--orange)}
 .slvstatus.down{background:rgba(242,85,90,.18);color:var(--red)}
-.slavectl{margin-top:9px;gap:6px}
+.slavectl{margin-top:9px;gap:6px;flex-wrap:wrap;row-gap:6px}
 button.mlink{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 8px 0 4px;background:transparent;
   font-size:10px;font-weight:700;letter-spacing:.06em;color:var(--text2)}
 button.mlink:hover{background:var(--ins)}
@@ -190,7 +191,6 @@ button.scene-btn:hover{background:var(--card)}
 button.scene-btn.missing{color:var(--orange)}
 button.scene-btn small{font-weight:400;font-size:10px}
 .ro .sname{padding:0;font-weight:500}
-.vid.novid{visibility:hidden}
 /* cue on/off: a small text tag, click to switch */
 button.en,span.en{display:inline-flex;align-items:center;flex-shrink:0;margin:4px 2px 0 4px;height:14px;width:48px;padding:0;justify-content:center;
   border-radius:3px;font-size:8px;line-height:14px;font-weight:700;letter-spacing:.06em;padding-bottom:.5px;
@@ -247,9 +247,6 @@ button.tsum:hover:not(:disabled){filter:brightness(1.3)}
 .grip:hover{color:var(--text2)} .grip:active{cursor:grabbing}
 .num{width:14px;text-align:right;color:var(--text4);font-size:11px;font-variant-numeric:tabular-nums}
 .item select.scene{flex:1}
-.vid{width:24px;height:24px;padding:0;justify-content:center;border-radius:6px;background:var(--card);color:var(--text3)}
-.vid.same{background:rgba(53,201,139,.12);color:var(--green)}
-.vid.unknown{color:var(--text4)}
 .trans{max-width:150px}
 .unit{color:var(--text4);font-size:11px}
 .ro .grip,.ro .rowbtn{display:none}
@@ -289,6 +286,8 @@ body.locked #syncBox button, body.locked #syncBox label, body.locked #updBox but
 body.locked #transport, body.locked #plToolbar, body.locked #addBox, body.locked #roleSeg, body.locked #syncBox button,
 body.locked #updBox button, body.locked #pageSync section, body.locked #items{opacity:.45}
 body.locked #miEye, body.locked #miCopy{pointer-events:auto}
+/* the padlock itself always works (on a slave it sits in #syncBox) */
+body.locked #btnLock{pointer-events:auto!important;opacity:1!important}
 /* tally (any switcher, tally/): red ON AIR, green PVW, nothing otherwise */
 /* tally badge, in the on-air card: ON AIR solid red, PVW solid green */
 .tallyslot{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0}
@@ -390,7 +389,29 @@ a.lnk:hover{color:var(--text2)}
 .modal .t{font-weight:700;font-size:13px;color:var(--text)}
 .modal p{margin:8px 0 12px;color:var(--text2);font-size:11.5px;line-height:1.5}
 .modal .b{display:flex;gap:6px;justify-content:flex-end}
+.outs{display:flex;flex-wrap:wrap;gap:2px 14px;margin-top:4px}
+.outs .chk{margin:2px 0}
+.tamodal{width:100%;max-width:380px;max-height:92vh;overflow:auto}
+.tamodal h4{margin:10px 0 4px;font-size:12.5px;color:var(--text)}
+.tamodal .live{margin:8px 0;padding:7px 9px;border-radius:var(--r-field);background:var(--ins);font-size:11.5px;color:var(--text2);white-space:normal;overflow-wrap:anywhere}
+.tamodal .live.ok{color:var(--green)} .tamodal .live.bad{color:var(--red)} .tamodal .live.warn{color:var(--orange)}
+.tamodal .chs{display:flex;flex-direction:column;gap:5px;margin:8px 0}
+.tamodal .chs button{justify-content:flex-start;white-space:normal;text-align:left}
+.tamodal .chs button.sel{box-shadow:inset 0 0 0 1px rgba(77,144,240,.7);color:var(--text)}
+.tamodal .chk{display:flex;gap:7px;align-items:center;font-size:11.5px;color:var(--text2);margin:3px 0}
+.tamodal textarea,.tamodal input.wide{width:100%;background:var(--ins);border:none;border-radius:var(--r-field);padding:6px 8px;color:var(--text);font:inherit;resize:vertical}
+.tamodal textarea:focus{outline:none;box-shadow:var(--focus)}
+.tamodal textarea.rep{font-family:var(--mono);font-size:10.5px;height:190px;white-space:pre;overflow:auto}
+.tamodal .names{max-height:110px;overflow:auto;margin:6px 0;padding:6px 9px;border-radius:var(--r-field);background:var(--ins);font-size:11px;color:var(--text2)}
+.tamodal a{color:var(--blue)}
+a.btnlink{display:inline-flex;align-items:center;gap:6px;border-radius:9px;padding:6px 10px;font-weight:600;text-decoration:none;white-space:nowrap}
+a.btnlink.info{background:#0f1d33;color:var(--blue)}
 /* Sync: what to copy, one switch each (green on, red off) */
+.twobtn{display:flex;gap:2px;background:var(--card);border-radius:var(--r-field);padding:2px}
+.twobtn button{flex:1;justify-content:center;background:transparent;color:var(--text3);border-radius:6px;padding:6px 8px}
+.twobtn button:hover:not(.on){color:var(--text2)}
+.twobtn button.on{background:rgba(53,201,139,.15);color:var(--green);cursor:default}
+.swrow:focus-visible{outline:none;box-shadow:var(--focus);border-radius:6px}
 .swrow{display:flex;align-items:center;gap:10px;padding:7px 0;font-size:12px;color:var(--text);cursor:pointer}
 .swrow small{display:block;color:var(--text3);font-size:10.5px;margin-top:1px}
 .swrow.all{border-top:1px solid rgba(255,255,255,.06);margin-top:2px;padding-top:9px;font-weight:700}
@@ -410,7 +431,7 @@ button.durbtn.def{color:var(--text3)}
 
 <div id="airFrame"></div>
 <header>
-  <div class="logo" title="OBS Conductor">obs<span>.</span>conductor</div>
+  <div class="logo" title="OBS Conductor">obs<span>.</span><span class="lw">conductor</span></div>
   <span class="dot" id="obsDot"></span>
   <span id="obsTxt"></span>
   <div class="roleseg" id="roleSeg">
@@ -468,7 +489,7 @@ button.durbtn.def{color:var(--text3)}
     <div class="row" style="margin-top:7px">
       <span class="small faint grow ellip" id="onairNext"></span>
       <div class="transport" id="transport">
-        <button class="icon primary" id="btnPlay" title="Play from the first enabled cue"></button>
+        <button class="icon primary" id="btnPlay" title="Play from the first active cue"></button>
         <button class="icon toggle" id="btnLoop" title="Loop"></button>
         <button class="icon stop" id="btnStop" title="Stop"></button>
         <button class="icon toggle" id="btnEnd" title="At the end"></button>
@@ -537,7 +558,7 @@ button.durbtn.def{color:var(--text3)}
     <div class="small dim" style="margin-top:10px">Default scene duration</div>
     <div class="cardrow" style="margin-top:4px" title="For cues without their own duration (grey)">
       <span class="small faint grow">Cues without their own</span>
-      <label class="durbox"><input type="number" id="defDur" class="mono" min="0.5" step="0.5"><span>s</span></label>
+      <button class="selpick mono" id="defDur" style="width:84px" title="Default scene duration"></button>
     </div>
     <label class="chk" title="Leave off if OBS already restarts them">
       <input type="checkbox" id="setRestart"> Restart videos when their scene goes on air</label>
@@ -569,16 +590,16 @@ button.durbtn.def{color:var(--text3)}
     <div class="swrow" id="fbSwRow" style="margin-top:4px"><span class="sw" id="fbSw"></span>
       <span class="grow">Show a fallback scene<small id="fbNote"></small></span></div>
     <div class="cardrow" id="msFbSceneRow" title="Shown here when the master is lost">
-      <span class="small dim grow">Choose a scene</span>
+      <span class="small dim grow">Choose a&nbsp;scene</span>
       <select id="msFallback" style="width:170px"></select>
     </div>
   </section>
 
   <section id="secMedia" class="hidden">
-    <div class="cardrow"><span class="lbl grow">Medias location</span>
+    <div class="cardrow"><span class="lbl grow">Media location</span>
       <button class="icon ghost" id="btnRoots" title="Ask the master again"></button></div>
-    <div class="swrow" id="mdSwRow" style="margin-top:4px"><span class="sw" id="mdSw"></span>
-      <span class="grow">Same as master<small id="mdNote"></small></span></div>
+    <div class="twobtn" style="margin-top:6px"><button id="mdSame">Same as master</button><button id="mdCustom">Custom</button></div>
+    <div class="status" id="mdNote" style="white-space:normal"></div>
     <div id="rootsList"></div>
   </section>
 
@@ -609,23 +630,31 @@ button.durbtn.def{color:var(--text3)}
       <input id="tlPass" type="password" style="width:150px" autocomplete="new-password">
     </div>
     <div class="cardrow">
-      <span class="small dim grow">Input of this OBS</span>
+      <span class="small dim grow">Input of this&nbsp;OBS</span>
       <select id="tlInput" style="width:150px" title="The switcher input this PC's OBS feeds (list read from the switcher)"></select>
       <button class="icon ghost" id="tlRefresh" title="Read the inputs again"></button>
+    </div>
+    <div class="hidden" id="tlOutRow" title="Untick an output that must not light ON AIR / PVW (an aux used for recording, a second mix...)">
+      <div class="small dim" style="margin-top:8px">Outputs that count</div>
+      <div id="tlOutputs" class="outs"></div>
     </div>
     <div class="status" id="tlStatus"></div>
     <div class="cardrow" style="margin-top:8px">
       <button id="tlTest" title="Connects to the switcher again and reads its inputs (reads only)">Test connection</button>
       <span class="small grow ellip" id="tlTestRes"></span>
     </div>
-    <div class="status" id="tlNote">Reads only: never sends a command to the switcher.</div>
+    <div class="cardrow" style="margin-top:6px">
+      <button id="tlAssist" title="Test your switcher step by step, then send the result">Tally assistant</button>
+      <span class="grow"></span>
+    </div>
+    <div class="status" id="tlNote" style="white-space:normal">Reads only: never sends a command to the&nbsp;switcher.</div>
   </section>
 
   <section id="secApp">
     <div class="cardrow" title="This app: the dock's web server on this PC"><span class="lbl grow">OBS Conductor server</span><span class="small faint" id="setVersion"></span></div>
     <div class="cardrow" style="margin-top:8px">
       <span class="small dim grow">Dock port</span>
-      <input id="setPort" type="number" title="Applies after a restart">
+      <input id="setPort" type="number" min="1024" max="65535" title="1024 to 65535. Applies after a restart">
     </div>
     <div class="cardrow">
       <span class="small dim grow">Reachable from</span>
@@ -644,7 +673,7 @@ button.durbtn.def{color:var(--text3)}
 <div class="verfoot" id="verFoot"></div>
 
 <div id="down" class="overlay hidden"><div class="modal">
-  <div class="t" id="downT">OBS Conductor is not running</div>
+  <div class="t" id="downT" style="color:var(--orange)">OBS Conductor is not running</div>
   <p id="downP"></p>
   <div class="row small faint"><span class="spin"></span>Waiting...</div>
 </div></div>
@@ -652,12 +681,19 @@ button.durbtn.def{color:var(--text3)}
 <div id="syncModal" class="overlay hidden"><div class="modal" style="min-width:260px">
   <div class="t">Sync from the master</div>
   <div style="margin:8px 0 12px">
-    <div class="swrow" data-k="scenes"><span class="sw"></span><span class="grow">Scenes<small>Reloads them here: short blank on the output</small></span></div>
+    <div class="swrow" data-k="scenes"><span class="sw"></span><span class="grow">Scenes<small>Reloads them here: short blank on the&nbsp;output</small></span></div>
     <div class="swrow" data-k="media"><span class="sw"></span><span class="grow">Media<small>Copies the files the scenes use</small></span></div>
     <div class="swrow" data-k="obs"><span class="sw"></span><span class="grow">OBS settings<small>Canvas, output, FPS, colour, audio</small></span></div>
     <div class="swrow all" data-k="all"><span class="sw"></span><span class="grow">All</span></div>
   </div>
   <div class="b"><button id="syncNo">Cancel</button><button id="syncOk" class="primary">Sync</button></div>
+</div></div>
+
+<div id="taModal" class="overlay hidden"><div class="modal tamodal">
+  <div class="cardrow"><span class="t grow">Tally assistant</span><span class="small faint" id="taCount"></span></div>
+  <div id="taBody"></div>
+  <div class="b" style="margin-top:12px"><button id="taClose" class="ghost">Close</button><span class="grow"></span>
+    <button id="taBack">Back</button><button id="taSkip" class="ghost">Skip</button><button id="taNext" class="primary">Next</button></div>
 </div></div>
 
 <div id="modal" class="overlay hidden"><div class="modal">
@@ -703,8 +739,29 @@ const ICON = {
   unlock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.8-1.2"/></svg>',
   more:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
   eye:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
-  film:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14M17 5v14M3 9h4M3 15h4M17 9h4M17 15h4"/></svg>',
 };
+/** Icon-only buttons: their tooltip is also their name for screen readers
+ *  (aria-label), kept in step when the tooltip changes. */
+function ariaIcons(){
+  for (const b of document.querySelectorAll('button[title]')) {
+    if (b.textContent.trim()) continue;
+    if (b.getAttribute('aria-label') !== b.title) b.setAttribute('aria-label', b.title);
+  }
+  // switch rows (Sync choices, Fallback): reachable with Tab, state said
+  for (const r of document.querySelectorAll('.swrow')) {
+    if (!r.hasAttribute('tabindex')) { r.setAttribute('tabindex', '0'); r.setAttribute('role', 'switch'); }
+    const on = String(!!r.querySelector('.sw.on'));
+    if (r.getAttribute('aria-checked') !== on) r.setAttribute('aria-checked', on);
+  }
+}
+// Space / Enter on a switch row: the same as a click
+document.addEventListener('keydown', e => {
+  const r = e.target && e.target.classList && e.target.classList.contains('swrow') ? e.target : null;
+  if (r && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); r.click(); }
+});
+let ariaQueued = false;
+new MutationObserver(() => { if (ariaQueued) return; ariaQueued = true; requestAnimationFrame(() => { ariaQueued = false; ariaIcons(); }); })
+  .observe(document.documentElement, {subtree: true, childList: true, attributes: true, attributeFilter: ['title', 'class']});
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function fmt(sec, tenths){
   if (sec == null || isNaN(sec)) return '--:--';
@@ -724,6 +781,7 @@ async function api(path, opts){
   return j;
 }
 function flashError(msg){
+  msg = String(msg || ''); msg = msg.charAt(0).toUpperCase() + msg.slice(1);   // server messages start lowercase
   const b = $('errBox'); b.textContent = msg; b.className = 'msg err'; b.dataset.src = '';
   // hide it later, unless an error of the app took its place meanwhile
   clearTimeout(flashError.t); flashError.t = setTimeout(() => { if (b.dataset.src !== 'state') b.classList.add('hidden'); }, 6000);
@@ -781,7 +839,7 @@ async function loadSettings(){
   try { gen = await api('/api/settings'); } catch(e) { return; }
   showDefTrans();
   $('setRestart').checked = !!gen.playback.restart_media_on_switch;
-  $('defDur').value = fmtSec(gen.default_duration);
+  showDefDur();
   $('setPort').value = gen.dashboard.port; $('setBind').value = gen.dashboard.bind;
   showTallySettings();
   loadTallyInputs();
@@ -817,7 +875,14 @@ function showTallyAuth(){
   $('tlHost').title = d ? `IP of the ${d.label}. Empty: no tally` : 'IP of the switcher';
 }
 $('tlDevice').onchange = async () => { await saveSettings({tally: {device: $('tlDevice').value}}); showTallySettings(); loadTallyInputs(); };
-$('tlHost').onchange = async () => { await saveSettings({tally: {host: $('tlHost').value}}); loadTallyInputs(); };
+$('tlHost').onchange = async () => {
+  const had = !!(gen && gen.tally && gen.tally.has_password);
+  await saveSettings({tally: {host: $('tlHost').value}});
+  showTallyAuth();
+  // another machine: its password is asked again (never sent to the new one)
+  if (had && !(gen.tally && gen.tally.has_password)) flashInfo('Tally: type the password of this switcher');
+  loadTallyInputs();
+};
 $('tlPort').onchange = async () => { await saveSettings({tally: {port: $('tlPort').value || null}}); loadTallyInputs(); };
 $('tlUser').onchange = async () => { await saveSettings({tally: {user: $('tlUser').value}}); loadTallyInputs(); };
 $('tlPass').onchange = async () => { await saveSettings({tally: {password: $('tlPass').value}}); $('tlPass').value = ''; showTallyAuth(); loadTallyInputs(); };
@@ -845,7 +910,7 @@ $('tlScan').onclick = async () => {
   b.disabled = true; st.classList.remove('hidden'); st.style.color = ''; st.textContent = 'Looking for switchers on the network...';
   box.classList.add('hidden'); box.innerHTML = '';
   try {
-    const found = (await api('/api/tally/scan')).found || [];
+    const found = (await api('/api/tally/scan', {body: {}})).found || [];
     st.textContent = (found.length ? `${found.length} found: click the right one.` : 'None found: choose the model and type its address.') +
       ' ATEM and Barco are not scanned (choose them in the list).';
     st.style.color = found.length ? '' : 'var(--orange)';
@@ -866,6 +931,21 @@ $('tlScan').onclick = async () => {
   b.disabled = false;
 };
 
+/** Settings > Tally: the outputs read on the switcher; all count unless unticked (2.3.0). */
+function showTallyOutputs(outputs, excluded){
+  const box = $('tlOutputs'), ex = new Set(excluded);
+  $('tlOutRow').classList.toggle('hidden', !outputs.length);
+  const sig = JSON.stringify([outputs, excluded]);
+  if (box.dataset.sig === sig) return;           // no redraw while ticking
+  box.dataset.sig = sig;
+  box.innerHTML = outputs.map(o => `<label class="chk"><input type="checkbox" data-o="${esc(o)}"${ex.has(o) ? '' : ' checked'}> ${esc(o)}</label>`).join('');
+  box.querySelectorAll('input').forEach(i => i.onchange = async () => {
+    const off = [...box.querySelectorAll('input')].filter(x => !x.checked).map(x => x.dataset.o);
+    await saveSettings({tally: {exclude_outputs: off}});
+    box.dataset.sig = JSON.stringify([outputs, off]);
+  });
+}
+
 /** Where an input is right now, in the list: tells the OBS feed from a look-alike. */
 function whereLabel(t){
   if (!t) return '';
@@ -878,17 +958,22 @@ function whereLabel(t){
 /** Settings > Tally: the switcher's inputs [{id, name}], read from it (nothing to type). */
 let tallyInputs = [], tallyListError = '';
 // the list shows where each input is now: read again while Settings is open
-setInterval(() => { if (!$('pageSync').classList.contains('hidden') && document.activeElement !== $('tlInput') && $('tlHost').value.trim()) loadTallyInputs(true); }, 10000);
+setInterval(() => { if (!$('pageSync').classList.contains('hidden') && document.activeElement !== $('tlInput') && $('tlHost').value.trim() && !((S && S.tally) || {}).cut) loadTallyInputs(true); }, 10000);
 async function loadTallyInputs(quiet){
   const sel = $('tlInput');
   const t = (gen && gen.tally) || {};
   let cur = t.input || '';
-  if (!$('tlDevice').value) { sel.innerHTML = '<option value="">Choose the model first</option>'; sel.disabled = true; return; }
-  if (!$('tlHost').value.trim()) { sel.innerHTML = '<option value="">Type the address first</option>'; sel.disabled = true; return; }
+  if (!$('tlDevice').value) { sel.innerHTML = '<option value="">Model first</option>'; sel.disabled = true; $('tlOutRow').classList.add('hidden'); return; }
+  if (!$('tlHost').value.trim()) { sel.innerHTML = '<option value="">Address first</option>'; sel.disabled = true; return; }
+  // tally stopped: nothing is read, the chosen input is shown as it is
+  if (((S && S.tally) || {}).cut) {
+    sel.innerHTML = '<option value="">Tally stopped</option>' + (cur ? `<option value="${esc(cur)}" selected>${esc(t.input_name || cur)}</option>` : '');
+    sel.disabled = true; tallyListError = ''; return;
+  }
   if (!quiet) { sel.disabled = true; sel.innerHTML = '<option>Reading the inputs...</option>'; }
   let err = null;
   let suggest = null, pc = '', states = {};
-  try { const j = await api('/api/tally/inputs'); tallyInputs = j.inputs || []; suggest = j.suggest; pc = j.pc || ''; states = j.states || {}; }
+  try { const j = await api('/api/tally/inputs'); tallyInputs = j.inputs || []; suggest = j.suggest; pc = j.pc || ''; states = j.states || {}; showTallyOutputs(j.outputs || [], j.excluded || []); }
   catch(e) { err = e.message; tallyInputs = []; }
   // nothing chosen yet: the input named like this PC is taken at once
   let auto = false;
@@ -900,7 +985,7 @@ async function loadTallyInputs(quiet){
   const list = tallyInputs.slice();
   const known = id => tallyInputs.some(x => x.id === id);
   if (cur && !known(cur)) list.unshift({id: cur, name: t.input_name || cur});
-  sel.innerHTML = '<option value="">' + (err ? 'Switcher not reachable' : list.length ? 'Choose...' : 'No input found') + '</option>' +
+  sel.innerHTML = '<option value="">' + (err ? (((S && S.tally) || {}).cut ? 'Tally stopped' : 'Not reachable') : list.length ? 'Choose...' : 'No input found') + '</option>' +
     list.map(x => `<option value="${esc(x.id)}"${x.id === cur ? ' selected' : ''}>${esc(x.name)}${known(x.id) || err ? (x.id === cur ? '' : esc(whereLabel(states[x.id]))) : ' (not on the switcher)'}</option>`).join('');
   sel.disabled = false;
   tallyListError = err ? 'Its inputs could not be read.' : '';
@@ -913,7 +998,7 @@ $('tlTest').onclick = async () => {
   const host = $('tlHost').value.trim();
   if (gen && gen.tally && host !== (gen.tally.host || '')) await saveSettings({tally: {host}});
   try {
-    const j = await api('/api/tally/test');
+    const j = await api('/api/tally/test', {body: {}});
     out.textContent = j.ok ? `✓ ${j.model || 'Answered'} in ${j.ms} ms · ${j.inputs} input${j.inputs > 1 ? 's' : ''}` +
                              (j.screens != null ? `, ${j.screens} output${j.screens > 1 ? 's' : ''}` : '')
                            : '✗ ' + (j.error || 'No answer');
@@ -923,6 +1008,228 @@ $('tlTest').onclick = async () => {
   } catch(e) { out.textContent = '✗ ' + e.message; out.style.color = 'var(--red)'; }
   b.disabled = false;
 };
+
+/* ---------- Tally assistant (Settings > Tally) ----------
+ * Guides the user through a short test of the tally on his switcher, then
+ * builds a report (text) he copies or saves and posts himself. Reads only:
+ * the user moves the sources on the switcher with the switcher's own controls. */
+const TA_ISSUES = 'https://github.com/noar-justedit/obs-conductor/issues/new';
+const TA_WORD = {pgm: 'ON AIR', pvw: 'PVW', none: 'not on air'};
+const taDock = t => t.cut ? 'STOPPED' : !t.configured ? 'not configured' : !t.connected ? 'NO TALLY (switcher not reached)'
+  : t.state === 'pgm' ? 'ON AIR' + ((t.pgm || []).length ? ` (${t.pgm.join(', ')})` : '')
+  : t.state === 'pvw' ? 'PVW' + ((t.pvw || []).length ? ` (${t.pvw.join(', ')})` : '')
+  : 'not on air' + (t.multiviewer ? ' (multiviewer only)' : '');
+const taSec = ms => (ms / 1000).toFixed(1) + ' s';
+const taIn = () => `"${esc(((S && S.tally) || {}).input || '?')}"`;   // the switcher's name for it: escaped
+const TA_STEPS = [
+  {id: 'intro', kind: 'intro'},
+  {id: 'connect', kind: 'connect', title: 'Connection test'},
+  {id: 'identity', kind: 'ask', title: 'Switcher recognised',
+   q: () => `OBS Conductor reads: <b>${esc(ta.model || 'unknown model')}</b>. Is that your switcher?`,
+   choices: [['Yes', 'ok'], ['No, or not sure', 'problem']], field: 'Real model and firmware, if you know them (optional)', machine: true},
+  {id: 'inputs', kind: 'ask', title: 'Input names',
+   q: () => 'Do these names match the ones your switcher shows?', names: true,
+   choices: [['Yes, the same', 'ok'], ['Some are missing or different', 'problem'], ['Nothing matches', 'problem']], field: 'What is different? (optional)'},
+  {id: 'pgm', kind: 'ask', title: 'Input on air (PGM)', live: true, expect: 'pgm',
+   todo: () => `On the switcher, put ${taIn()} on <b>air</b> (program), with the switcher's own controls.`,
+   q: () => 'Does the dock show ON AIR?', choices: [['Yes', 'ok'], ['No', 'problem']], field: 'What do you see? (optional)'},
+  {id: 'pvw', kind: 'ask', title: 'Input in preview (PVW)', live: true, expect: 'pvw',
+   todo: () => `Now put ${taIn()} in <b>preview</b> only (another input on air).`,
+   q: () => 'Does the dock show PVW?', choices: [['Yes', 'ok'], ['No', 'problem']], field: 'What do you see? (optional)'},
+  {id: 'off', kind: 'ask', title: 'Input nowhere', live: true, expect: 'none',
+   todo: () => `Now take ${taIn()} out of both program and preview.`,
+   q: () => 'Does the dock show nothing (no ON AIR, no PVW)?', choices: [['Yes', 'ok'], ['No', 'problem']], field: 'What do you see? (optional)'},
+  {id: 'key', kind: 'ask', optional: true, title: 'Input in a key / overlay / layer', live: true,
+   todo: () => `Optional. Put ${taIn()} on air <b>inside a key, overlay, layer or picture-in-picture</b> over another source. Skip if your switcher has none.`,
+   q: () => 'Is what the dock shows what you expect?', choices: [['Yes', 'ok'], ['No', 'problem']], field: 'What should it show? (optional)'},
+  {id: 'outputs', kind: 'ask', optional: true, title: 'Secondary outputs', live: true,
+   todo: () => `Optional. If the switcher has other outputs (aux, second mix, second screen, multiviewer), put ${taIn()} on one of them <b>only</b>, not on the main program. Skip if there are none.`,
+   q: () => 'Is what the dock shows what you expect?', choices: [['Yes', 'ok'], ['No', 'problem']], field: 'Which outputs should count as ON AIR? (optional)'},
+  {id: 'network', kind: 'net', optional: true, title: 'Switcher lost and back'},
+  {id: 'notes', kind: 'notes'},
+  {id: 'report', kind: 'report'},
+];
+let ta = null, taTimer = null;
+const taStep = () => TA_STEPS[ta.i];
+const taCopy = async txt => {
+  try { await navigator.clipboard.writeText(txt); }
+  catch(e) { const t = document.createElement('textarea'); t.value = txt; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch(_) {} t.remove(); }
+};
+
+$('tlAssist').onclick = () => {
+  ta = {i: 0, res: {}, data: {}, notes: '', machine: '', raw: true, model: '', report: ''};
+  $('taModal').classList.remove('hidden');
+  clearInterval(taTimer); taTimer = setInterval(taTick, 500);
+  taGo(0);
+};
+$('taClose').onclick = () => { clearInterval(taTimer); taTimer = null; $('taModal').classList.add('hidden'); ta = null; };
+$('taBack').onclick = () => { taLeave(false); taGo(ta.i - 1); };
+$('taNext').onclick = () => { taLeave(false); taGo(ta.i + 1); };
+$('taSkip').onclick = () => {
+  const st = taStep();
+  if (st.title) ta.res[st.id] = {title: st.title, result: 'skipped', detail: ''};
+  taGo(ta.i + 1);
+};
+
+function taGo(i){
+  ta.i = Math.max(0, Math.min(TA_STEPS.length - 1, i));
+  ta.t0 = Date.now(); ta.seen = null; ta.lostAt = null; ta.backAt = null; ta.sig = '';
+  taRender();
+}
+/** Leaving a step by Next: the network step is judged here (it is measured, not answered). */
+function taLeave(){
+  const st = taStep();
+  if (st.kind === 'net') {
+    const r = ta.lostAt == null ? ['problem', 'the dock never noticed the switcher was gone']
+      : ta.backAt == null ? ['problem', `the dock noticed after ${taSec(ta.lostAt)} but did not find the switcher again`]
+      : ['ok', `lost after ${taSec(ta.lostAt)}, found again after ${taSec(ta.backAt - ta.lostAt)}`];
+    ta.res[st.id] = {title: st.title, result: r[0], detail: r[1]};
+  }
+  if (st.kind === 'notes') ta.notes = ($('taNotes') || {}).value || '';
+}
+
+function taRender(){
+  const st = taStep(), body = $('taBody'), t = (S && S.tally) || {};
+  const steps = TA_STEPS.length - 1;
+  $('taCount').textContent = st.kind === 'intro' ? '' : `${ta.i} / ${steps}`;
+  $('taBack').classList.toggle('hidden', ta.i === 0);
+  $('taSkip').classList.toggle('hidden', !['ask', 'connect', 'net'].includes(st.kind));
+  $('taNext').classList.toggle('hidden', st.kind === 'report');
+  $('taNext').textContent = st.kind === 'intro' ? 'Start' : st.kind === 'notes' ? 'Make the report' : 'Next';
+  $('taNext').disabled = false;
+  if (st.kind === 'intro') {
+    body.innerHTML = `<p>This guides you through a short test of the tally on <b>your</b> switcher (about 10 minutes), then gives you a report to send back. It helps the next version support your machine.</p>
+      <p>OBS Conductor only <b>reads</b> the switcher: it never sends a command. You move the sources on the switcher yourself, with its own controls.</p>
+      <div id="taReady"></div>`;
+    taIntro();
+  } else if (st.kind === 'connect') {
+    body.innerHTML = `<h4>Connection test</h4><p>Connects to the switcher and reads its inputs.</p><div class="live" id="taConn">Testing...</div><button id="taRetry">Test again</button>`;
+    $('taRetry').onclick = taConnect;
+    taConnect();
+  } else if (st.kind === 'ask') {
+    const d = ta.data[st.id] || {};
+    let h = `<h4>${esc(st.title)}</h4>`;
+    if (st.todo) h += `<p>${st.todo()}</p>`;
+    if (st.live) h += `<div class="live" id="taLive"></div>`;
+    if (st.names) h += `<div class="names">${tallyInputs.length ? tallyInputs.slice(0, 40).map(x => esc(x.name)).join('<br>') + (tallyInputs.length > 40 ? `<br>... (${tallyInputs.length} in all)` : '') : 'No input read.'}</div>`;
+    h += `<p style="margin-bottom:0">${st.q()}</p><div class="chs">` +
+      st.choices.map((c, k) => `<button data-k="${k}" class="${d.choice === k ? 'sel' : ''}">${esc(c[0])}</button>`).join('') + '</div>';
+    h += `<input class="wide" id="taText" placeholder="${esc(st.field || '')}" value="${esc(d.text || '')}" maxlength="300">`;
+    body.innerHTML = h;
+    body.querySelectorAll('.chs button').forEach(b => b.onclick = () => { ta.data[st.id] = {...(ta.data[st.id] || {}), choice: +b.dataset.k}; taAnswer(); body.querySelectorAll('.chs button').forEach(x => x.classList.toggle('sel', x === b)); });
+    $('taText').oninput = () => { ta.data[st.id] = {...(ta.data[st.id] || {}), text: $('taText').value}; if ((ta.data[st.id] || {}).choice != null) taAnswer(); };
+    $('taNext').disabled = d.choice == null;
+    taTick();
+  } else if (st.kind === 'net') {
+    body.innerHTML = `<h4>${esc(st.title)}</h4><p>Optional. Unplug the <b>switcher's</b> network cable (or switch the switcher off) for about 10 seconds, then plug it back in. Not this PC's cable. Press Next when it is back.</p><div class="live" id="taLive"></div>`;
+    taTick();
+  } else if (st.kind === 'notes') {
+    body.innerHTML = `<h4>Anything else?</h4><p>Something odd, something that was slow, how your switcher is set up. Optional.</p><textarea id="taNotes" rows="5" maxlength="2000">${esc(ta.notes)}</textarea>`;
+  } else if (st.kind === 'report') {
+    body.innerHTML = `<h4>Your report</h4><p>Read it, then copy it or save it, and post it as a GitHub issue. Your password and the switcher's address are hidden. The input names are in it.</p>
+      <textarea class="rep" id="taRep" readonly>Building the report...</textarea>
+      <label class="chk"><input type="checkbox" id="taRaw" ${ta.raw ? 'checked' : ''}> Include what the switcher answered (recommended: it is what lets us fix a&nbsp;driver)</label>
+      <div class="row" style="margin-top:8px;flex-wrap:wrap"><button id="taCopy" class="primary">Copy the report</button><button id="taSave">Save as a file</button>
+      <a id="taIssue" class="btnlink info" href="#" target="_blank" rel="noopener">Open a GitHub issue</a></div>
+      <div class="status" style="white-space:normal">Opening the issue also copies the report: paste it (Ctrl/Cmd+V) in the issue.</div>`;
+    $('taRaw').onchange = () => { ta.raw = $('taRaw').checked; taBuild(); };
+    $('taCopy').onclick = async () => { await taCopy(ta.report); flashInfo('Report copied'); };
+    $('taSave').onclick = () => { location.href = '/api/tally/report/download'; };
+    const dev = tallyDev();
+    $('taIssue').href = `${TA_ISSUES}?title=${encodeURIComponent('Tally test: ' + (dev ? dev.label : 'switcher'))}&body=${encodeURIComponent('Paste the report here (Ctrl/Cmd+V).')}`;
+    $('taIssue').onclick = () => { taCopy(ta.report); };
+    taBuild();
+  }
+}
+
+/** An answer in an "ask" step: the result and its detail, as the report will say them. */
+function taAnswer(){
+  const st = taStep(), d = ta.data[st.id] || {}, c = st.choices[d.choice];
+  if (!c) return;
+  const t = (S && S.tally) || {}, bits = [];
+  if (st.live) {
+    if (st.expect) bits.push(`expected ${TA_WORD[st.expect]}`);
+    bits.push(`dock showed ${taDock(t)}` + (st.expect && ta.seen != null ? ` (right after ${taSec(ta.seen)})` : ''));
+  }
+  bits.push(`tester says: ${c[0]}`);
+  if ((d.text || '').trim()) bits.push(d.text.trim());
+  if (st.machine && (d.text || '').trim()) ta.machine = d.text.trim();
+  ta.res[st.id] = {title: st.title, result: c[1], detail: bits.join(' · ')};
+  $('taNext').disabled = false;
+}
+
+/** Twice a second: the live line (what the dock shows now) and the network watch. */
+function taTick(){
+  if (!ta) return;
+  const st = taStep(), t = (S && S.tally) || {};
+  if (st.kind === 'intro') return taIntro();
+  const el = $('taLive');
+  if (!el) return;
+  const now = Date.now() - ta.t0;
+  if (st.kind === 'net') {
+    if (ta.lostAt == null && t.configured && !t.connected && !t.cut) ta.lostAt = now;
+    if (ta.lostAt != null && ta.backAt == null && t.connected) ta.backAt = now;
+    el.className = 'live ' + (ta.backAt != null ? 'ok' : ta.lostAt != null ? 'warn' : '');
+    el.textContent = ta.backAt != null ? `The dock lost the switcher after ${taSec(ta.lostAt)} and found it again after ${taSec(ta.backAt - ta.lostAt)}.`
+      : ta.lostAt != null ? `The dock lost the switcher (after ${taSec(ta.lostAt)}). Plug it back in...`
+      : `Dock now: ${taDock(t)}. Waiting for the switcher to disappear...`;
+    return;
+  }
+  const match = st.expect && t.connected && t.state === st.expect;
+  if (match && ta.seen == null) ta.seen = now;
+  el.className = 'live ' + (match ? 'ok' : !t.connected ? 'bad' : '');
+  el.textContent = 'The dock shows now: ' + taDock(t);
+}
+
+/** Intro: what must be set in Settings before the test. */
+function taIntro(){
+  const box = $('taReady'); if (!box) return;
+  const g = (gen && gen.tally) || {}, t = (S && S.tally) || {}, dev = tallyDev();
+  const checks = [
+    [!!dev, 'Switcher model chosen' + (dev ? ': ' + dev.label : '')],
+    [!!g.host, 'Address typed'],
+    [!!g.input, 'Input of this OBS chosen' + (g.input_name ? ': ' + g.input_name : '')],
+    [!t.cut, 'Tally on'],
+  ];
+  const ok = checks.every(c => c[0]), sig = JSON.stringify(checks);
+  if (ta.sig !== sig) {
+    ta.sig = sig;
+    box.innerHTML = checks.map(c => `<div class="chk" style="color:var(--${c[0] ? 'green' : 'orange'})">${c[0] ? '✓' : '○'} ${esc(c[1])}</div>`).join('') +
+      (ok ? '' : `<div class="status" style="white-space:normal;color:var(--orange)">Finish the missing points in Settings > Tally, then start again.</div>`) +
+      (t.cut ? '<button id="taOn" class="primary" style="margin-top:6px">Turn the tally on</button>' : '');
+    if (t.cut) $('taOn').onclick = async () => { await setTallyCut(false); ta.sig = ''; };
+  }
+  $('taNext').disabled = !ok;
+}
+
+async function taConnect(){
+  const el = $('taConn'), st = taStep();
+  el.className = 'live'; el.textContent = 'Testing...'; $('taNext').disabled = true;
+  let j;
+  try { j = await api('/api/tally/test', {body: {}}); } catch(e) { j = {ok: false, error: e.message}; }
+  if (!ta || taStep() !== st) return;
+  ta.model = j.model || '';
+  if (j.ok) {
+    const d = `${j.model || 'answered'} in ${j.ms} ms · ${j.inputs} input${j.inputs > 1 ? 's' : ''}` + (j.screens != null ? `, ${j.screens} output${j.screens > 1 ? 's' : ''}` : '');
+    ta.res.connect = {title: st.title, result: 'ok', detail: d};
+    el.className = 'live ok'; el.textContent = '✓ ' + d;
+    try { const r = await api('/api/tally/inputs'); tallyInputs = r.inputs || []; } catch(e) {}
+  } else {
+    ta.res.connect = {title: st.title, result: 'problem', detail: j.error || 'no answer'};
+    el.className = 'live bad'; el.textContent = '✗ ' + (j.error || 'No answer');
+  }
+  $('taNext').disabled = false;
+}
+
+async function taBuild(){
+  const steps = TA_STEPS.filter(s => ta.res[s.id]).map(s => ta.res[s.id]);
+  const box = $('taRep'); if (box) box.value = 'Building the report...';
+  try {
+    const j = await api('/api/tally/report', {body: {steps, notes: ta.notes, machine: ta.machine, include_raw: ta.raw}});
+    ta.report = j.text || '';
+  } catch(e) { ta.report = 'Report failed: ' + e.message; }
+  if ($('taRep')) $('taRep').value = ta.report;
+}
 
 /** Tally bar at the very top (ON AIR red, PVW green) and its Settings card. */
 function renderTally(){
@@ -957,8 +1264,9 @@ function renderTally(){
   // STOP TALLY: the red button at the top while the tally is on; the Settings switch
   const cut = !!t.cut;
   $('btnPanic').classList.toggle('hidden', cut);
-  $('tlCutTxt').textContent = cut ? 'Tally stopped: nothing is sent to any switcher.' : 'Tally on (reads the switcher).';
-  $('tlCutTxt').style.color = cut ? 'var(--orange)' : 'var(--green)';
+  document.body.classList.toggle('tallyon', !cut);
+  $('tlCutTxt').textContent = cut ? 'Tally stopped: nothing is sent to any\u00a0switcher.' : 'Tally on (reads the\u00a0switcher).';
+  $('tlCutTxt').style.color = cut ? 'var(--orange)' : t.connected ? 'var(--green)' : '';
   $('tlCutBtn').textContent = cut ? 'Turn the tally on' : 'Stop tally';
   $('tlCutBtn').className = cut ? 'primary' : 'danger';
   $('tlCutBtn').title = cut ? 'OBS Conductor will read the switcher again (reads only)' : 'Stops the whole tally at once: nothing is sent to any switcher any more';
@@ -967,7 +1275,7 @@ function renderTally(){
   $('tlBadge').textContent = cut ? 'STOPPED' : !t.configured ? 'OFF' : t.connected ? 'CONNECTED' : 'DISCONNECTED';
   $('tlBadge').className = 'stbadge' + (cut ? ' warn' : !t.configured ? '' : t.connected ? ' run' : ' lost');
   const act = !t.configured || (t.connected && t.state === 'none' && t.multiviewer);
-  $('tlStatus').textContent = cut ? 'Turn the tally on to read the switcher.' : !t.configured ? (!t.device ? 'Choose the switcher model (or Scan).' : t.host ? 'Choose the input of this OBS.' : 'Type the switcher\'s address.')
+  $('tlStatus').textContent = cut ? 'Turn the tally on to read the switcher.' : !t.configured ? (!t.device ? 'Choose the switcher model (or Scan).' : t.host ? 'Choose the input of this OBS.' + (tallyListError ? ' ' + tallyListError : '') : 'Type the switcher\'s address.')
     : t.connected ? (t.state === 'pgm' ? `"${t.input}" is on air: ${(t.pgm || []).join(', ')}`
       : t.state === 'pvw' ? `"${t.input}" is in preview: ${(t.pvw || []).join(', ')}`
       : `"${t.input}": not on air` + (t.multiviewer ? ' (only on the multiviewer: the right input?)' : ''))
@@ -1009,11 +1317,24 @@ $('defLen').onclick = e => openMenu(e.currentTarget, m => {
   lengthItems(m, gen.default_transition.duration_ms, ms => setDefTrans({name: gen.default_transition.name, duration_ms: ms}));
 });
 $('setRestart').onchange = () => saveSettings({playback: {restart_media_on_switch: $('setRestart').checked}});
-$('defDur').onchange = () => {
-  const v = Math.max(0.5, parseFloat($('defDur').value) || 10);
-  $('defDur').value = fmtSec(v);
+/** Default scene duration: the same menu as a cue's duration (usual lengths, or a typed one). */
+function showDefDur(){ $('defDur').textContent = fmtSec((gen && gen.default_duration) || 10) + 's'; }
+function setDefDur(v){
+  gen.default_duration = v; showDefDur(); closeMenu();
   saveSettings({default_duration: v});
-};
+}
+$('defDur').onclick = e => openMenu(e.currentTarget, m => {
+  menuHead(m, 'Scene duration');
+  const cur = (gen && gen.default_duration) || 10;
+  for (const sec of SCENE_LENGTHS) menuItem(m, {label: sec + 's', checked: cur === sec, onClick: () => setDefDur(sec)});
+  const r = document.createElement('div');
+  r.className = 'mrow';
+  r.innerHTML = `<span>Custom</span><input type="number" class="mono" min="0.5" step="0.1" value="${SCENE_LENGTHS.includes(cur) ? '' : fmtSec(cur)}" placeholder="${fmtSec(cur)}"><span class="unit">s</span>`;
+  const inp = r.querySelector('input');
+  inp.onchange = () => { const v = parseFloat(inp.value); if (v > 0) setDefDur(Math.round(Math.max(0.5, v) * 1000) / 1000); };
+  inp.onkeydown = e => { if (e.key === 'Enter') inp.blur(); };
+  m.appendChild(r);
+});
 $('setPort').onchange = () => saveSettings({dashboard: {port: parseInt($('setPort').value) || 8090}});
 $('setBind').onchange = () => saveSettings({dashboard: {bind: $('setBind').value}});
 
@@ -1024,7 +1345,14 @@ function showTab(t){
   $('tabPlaylist').classList.toggle('on', t === 'playlist');
   $('tabSync').classList.toggle('on', t === 'sync');
   try { localStorage.setItem('obsConductorTab', t); } catch(e) {}
-  if (t === 'sync') { loadSettings(); loadMasterInfo(); renderSlaveCard(); if (isSlave() && hasMaster()) loadRoots(); }
+  if (t === 'sync') {
+    loadSettings(); loadMasterInfo(); renderSlaveCard();
+    if (isSlave() && hasMaster()) {
+      // the choice is kept on this PC: shown at once, before the master answers
+      api('/api/slave/config').then(c => { if (c.media_mode) { mediaMode = c.media_mode; showMediaMode(); } }).catch(() => {});
+      loadRoots();
+    }
+  }
 }
 $('tabPlaylist').onclick = () => showTab('playlist');
 $('tabSync').onclick = () => showTab('sync');
@@ -1036,7 +1364,7 @@ async function loadObsLists(){
   try { sc = (await api('/api/scenes')).scenes || []; } catch(e) {}
   try { tr = await api('/api/transitions'); } catch(e) {}
   // videos that couldn't be read (OBS busy, scene just created): try again
-  for (const [scn, md] of Object.entries(media)) if (md && md.error) getMedia(scn).then(renderBadges);
+  for (const [scn, md] of Object.entries(media)) if (md && md.error) getMedia(scn);
   const key = JSON.stringify([sc, tr.names, tr.fixed]);
   if (key === obsListsKey) return;          // nothing new: don't disturb editing
   obsListsKey = key; scenes = sc; trans = tr;
@@ -1092,7 +1420,7 @@ async function loadPlaylist(name){
   const j = await api('/api/playlist?name=' + encodeURIComponent(name));
   plName = j.name; pl = j.playlist; plRev = j.rev; plFile = j.file || null; dirty = false;
   renderAll();
-  pl.items.forEach(it => getMedia(it.scene).then(renderBadges));
+  pl.items.forEach(it => getMedia(it.scene));
 }
 function changed(structural){
   dirty = true;
@@ -1132,7 +1460,7 @@ function renderItems(){
   if (!list) return;
   box.classList.toggle('ro', ro);
   if (!list.items.length) {
-    box.innerHTML = `<div class="empty">${ro ? 'The master playlist is empty.' : 'Empty playlist - add a scene below.'}</div>`;
+    box.innerHTML = `<div class="empty">${ro ? (masterPlaylist() ? 'The master playlist is empty.' : 'The master playlist is not available.') : 'Empty playlist - add a scene below.'}</div>`;
     renderTotals(); return;
   }
   box.innerHTML = '';
@@ -1157,13 +1485,12 @@ function renderItems(){
         <div class="l1">
           <span class="grip" title="Drag to reorder">${ICON.grip}</span>
           <span class="num">${i+1}</span>
-          <button class="sname scene-btn${missing ? ' missing' : ''}" title="Change the scene">${esc(it.scene)}${missing ? ' <small>(not in OBS)</small>' : ''}</button>
+          <button class="sname scene-btn${missing ? ' missing' : ''}" title="Change the scene">${esc(it.scene)}${missing ? ' <small>(not in&nbsp;OBS)</small>' : ''}</button>
           <button class="en${it.enabled !== false ? ' on' : ''}" title="Click: play or skip this cue">${it.enabled !== false ? 'ACTIVE' : 'SKIPPED'}</button>
         </div>
         <div class="l2">
           <button class="icon ghost rowbtn playfrom" title="Play from this cue">${ICON.play}</button>
           <button class="durbtn mono" title="Scene duration"></button>
-          <button class="icon ghost vid novid" title="Videos of this scene: choose the one whose length is the duration">${ICON.film}</button>
           <span class="tpair"><button class="tsum tname"></button><button class="tsum tdur"></button></span>
           <span class="grow"></span>
           <button class="icon ghost danger rowbtn del" title="Remove this cue">${ICON.trash}</button>
@@ -1175,7 +1502,7 @@ function renderItems(){
     }
     box.appendChild(row);
   });
-  renderBadges(); renderTotals(); applyState();
+  renderTotals(); applyState();
 }
 
 const transLabel = t => t.name + (isFixed(t.name) || !t.duration_ms ? '' : ' ' + (t.duration_ms / 1000) + 's');
@@ -1227,7 +1554,7 @@ function durMenu(anchor, row, it){
         onClick: () => set(round2(v.duration), v.source),
       });
     }
-    menuItem(m, {label: 'Read the lengths again', cls: 'sub', onClick: async () => { await getMedia(it.scene, true); if (menuEl === m) build(m); renderBadges(); }});
+    menuItem(m, {label: 'Read the lengths again', cls: 'sub', onClick: async () => { await getMedia(it.scene, true); if (menuEl === m) build(m); }});
   };
   openMenu(anchor, build);
   const m = menuEl;
@@ -1315,37 +1642,6 @@ function longestVideo(md){
 }
 const videoNote = v => [v.loop ? 'loop' : '', v.hidden ? 'hidden' : ''].filter(Boolean).join(', ');
 
-/** Video reference: the videos of the scene with their length; the one
- *  picked gives the cue its duration. */
-function videoMenu(anchor, row, it){
-  const build = m => {
-    m.innerHTML = '';
-    menuHead(m, 'Duration from video');
-    const md = media[it.scene];
-    const list = (md && md !== 'loading' && md.media) || [];
-    if (md && md.error) menuItem(m, {label: 'Could not read the videos', disabled: true});
-    else if (!list.length) menuItem(m, {label: 'No video in this scene', disabled: true});
-    for (const v of list) {
-      const picked = it.video_ref ? it.video_ref === v.source
-                                  : !!v.duration && it.duration != null && Math.abs(v.duration - it.duration) < 0.05;
-      menuItem(m, {
-        label: v.source + (videoNote(v) ? ' (' + videoNote(v) + ')' : ''),
-        side: v.duration ? fmtSec(v.duration) + 's' : 'length unknown',
-        checked: picked, disabled: !v.duration,
-        onClick: () => {
-          it.duration = round2(v.duration); it.video_ref = v.source;
-          updateDuration(row, it);
-          changed(false); closeMenu();
-        },
-      });
-    }
-    menuItem(m, {label: 'Read the lengths again', cls: 'sub', onClick: async () => {
-      await getMedia(it.scene, true); build(m); renderBadges();
-    }});
-  };
-  openMenu(anchor, build);
-}
-
 /** Name badge: the default transition, or one of OBS's for this cue. */
 function transMenu(anchor, row, it){
   openMenu(anchor, m => {
@@ -1402,7 +1698,6 @@ function bindRow(row, it){
     changed(false); renderTotals();
   };
   row.querySelector('.scene-btn').onclick = e => sceneMenu(e.currentTarget, it);
-  row.querySelector('.vid').onclick = e => videoMenu(e.currentTarget, row, it);
   row.querySelector('.tname').onclick = e => transMenu(e.currentTarget, row, it);
   row.querySelector('.tdur').onclick = e => transLenMenu(e.currentTarget, row, it);
   row.querySelector('.durbtn').onclick = e => durMenu(e.currentTarget, row, it);
@@ -1412,24 +1707,6 @@ function bindRow(row, it){
   };
   row.querySelector('.playfrom').onclick = () => transport('play', pl.items.indexOf(it));
   row.querySelector('.grip').addEventListener('pointerdown', e => { if (row.dataset.locked !== '1') startDrag(e, row); });
-}
-
-/** The video button shows only for scenes that have a video (grey). */
-function renderBadges(){
-  if (!pl || isSlave()) return;
-  for (const row of $('items').querySelectorAll('.item')) {
-    const it = pl.items.find(x => x.id === row.dataset.id);
-    const b = row.querySelector('.vid');
-    if (!it || !b) continue;
-    const md = media[it.scene];
-    const failed = md && md !== 'loading' && md.error;
-    const has = md && md !== 'loading' && md.media && md.media.length;
-    b.classList.toggle('novid', !has && !failed);
-    b.classList.toggle('unknown', !!failed);
-    if (failed) b.title = 'Could not read the videos: click to try again';
-    else if (has) b.title = 'Duration from a video\n' +
-      md.media.map(x => x.source + ': ' + (x.duration ? fmtSec(x.duration) + 's' : '?') + (videoNote(x) ? ' (' + videoNote(x) + ')' : '')).join('\n');
-  }
 }
 
 let totalInfo = {secs: 0, text: '0:00', count: 0};
@@ -1522,7 +1799,6 @@ $('btnAdd').onclick = async () => {
   changed(true);
   const best = longestVideo(await getMedia(scene, true));
   if (best) { it.duration = round2(best.duration); it.video_ref = best.source; changed(true); }
-  else renderBadges();
 };
 
 // ---------- playlist management (inline, no browser dialogs) ----------
@@ -1553,8 +1829,16 @@ $('nameOk').onclick = async () => {
     let target;
     if (pendingName === 'rename') target = (await api('/api/playlist/rename', {body:{old: plName, new: name}})).name;
     else target = (await api('/api/playlist/create', {body:{name, copy_from: pendingName === 'dup' ? plName : null}})).name;
+    $('nameForm').classList.add('hidden');
+    // playing: the new one is made, the one on air stays (as for a loaded file)
+    if (pendingName !== 'rename' && isPlayingNow()) {
+      pendingName = null;
+      await loadPlaylists();
+      flashInfo('Created "' + target + '": pick it once playback is stopped');
+      return;
+    }
+    pendingName = null;
     await api('/api/active_playlist', {body:{name: target}}).catch(e => flashError(e.message));
-    $('nameForm').classList.add('hidden'); pendingName = null;
     await loadPlaylists(target);
   } catch(e) { flashError(e.message); }
 };
@@ -1637,13 +1921,19 @@ $('btnStop').onclick = () => transport('stop');
 function lockRow(r, on){
   if ((r.dataset.locked === '1') === on || r.closest('.ro')) return;
   r.dataset.locked = on ? '1' : '';
-  r.querySelectorAll('.scene-btn, .en, .durbtn, .vid, .tname, .tdur, .del').forEach(el => { el.disabled = on; });
+  r.querySelectorAll('.scene-btn, .en, .durbtn, .tname, .tdur, .del').forEach(el => { el.disabled = on; });
   r.querySelector('.grip').style.visibility = on ? 'hidden' : '';
   r.title = on ? 'On air: can\'t be changed now' : '';
   if (on && menuEl && menuAnchor && r.contains(menuAnchor)) closeMenu();
 }
 
 // ---------- live state ----------
+/** Why the master's answers are refused (master-client.js, 2.3.0). */
+const REFUSED = {old: 'Update the master (2.3.0 or newer)', nopassword: 'The master has no OBS password', forged: 'Answers not from the master', password: 'Master refused the password'};
+const REFUSED_LONG = {old: 'The master is older than this PC: update it to 2.3.0 or newer (scenes still followed).',
+  nopassword: 'The master\'s OBS has no WebSocket password: set one on the master, then link it again.',
+  forged: 'Answers that don\'t come from the master were refused (wrong password, or another machine at its address).',
+  password: 'The master refused the password.'};
 function masterState(){ return S && S.master && S.master.state; }
 function masterPlaylist(){ return S && S.master && S.master.playlist && S.master.playlist.playlist; }
 function viewPlayer(){
@@ -1721,7 +2011,7 @@ function applyState(){
                                : 'Connected to the master. Click: disconnect (free run, this PC keeps its scene).';
     // one short line only when something is wrong (full text on hover)
     const problem = !hasMaster() || free ? '' : !obsOkM ? (/password/i.test(f.error || '') ? 'Master refused the password' : 'Master not reachable')
-      : (!appOk ? 'Master playlist not reachable' : (f.error ? 'A scene could not be shown' : ''));
+      : (!appOk ? (REFUSED[m.refused] || 'Master playlist not reachable') : (f.error ? 'A scene could not be shown' : ''));
     $('slaveInfo').textContent = problem ? '⚠ ' + problem : '';
     $('slaveInfo').title = !obsOkM ? (f.error || '') : (!appOk ? (m.error || '') : (f.error || ''));
     $('slaveInfo').classList.toggle('hidden', !problem);
@@ -2036,7 +2326,8 @@ function tickView(){
     $('onairScene').textContent = lost && S.master_link.fallback_scene ? S.master_link.fallback_scene : '-';
     $('onairRemain').textContent = '--:--';
     $('onairNext').textContent = lost ? (S.master_link.fallback_scene ? 'Fallback scene' : 'Staying on the scene') : '';
-    $('plRemaining').textContent = ('Total ' + totalInfo.text + ' · ' + cuesText()).toUpperCase();
+    // a slave without its master's playlist: no total of an empty list
+    $('plRemaining').textContent = isSlave() && !masterPlaylist() ? '' : ('Total ' + totalInfo.text + ' · ' + cuesText()).toUpperCase();
     $('plRemaining').title = '';
   }
 
@@ -2111,7 +2402,7 @@ async function askRole(role){
   if (!S || S.role === role) return;
   if (S.role) {
     const ok = role === 'slave'
-      ? await confirmBox('Switch to SLAVE?', (isPlayingNow() ? 'Playback stops. ' : '') + 'This PC will follow a master.', 'Switch')
+      ? await confirmBox('Switch to SLAVE?', (isPlayingNow() ? 'Playback stops. ' : '') + 'This PC will follow a\u00a0master.', 'Switch')
       : await confirmBox('Switch to MASTER?', 'This PC stops following the master.', 'Switch');
     if (!ok) return;
   }
@@ -2255,9 +2546,10 @@ function renderSlaveCard(){
   // the badge says the state; this line only gives the reason when it's down
   $('msStatus').textContent = !ml.host || ok ? ''
     : !obsOk ? (/password/i.test(f.error || '') ? 'The master refused the password.' : 'The master\'s OBS doesn\'t answer.')
-    : 'The master\'s app doesn\'t answer (scenes still followed).';
+    : (REFUSED_LONG[(S.master || {}).refused] || 'The master\'s app doesn\'t answer (scenes still followed).');
   $('msStatus').title = detail;
-  $('msStatus').style.color = 'var(--red)';
+  // a refused master asks for an action (update it, set a password): orange
+  $('msStatus').style.color = (S.master || {}).refused === 'old' || (S.master || {}).refused === 'nopassword' ? 'var(--orange)' : 'var(--red)';
   $('msStatus').classList.toggle('hidden', !(ml.host && !ok));
   $('btnChangeMaster').textContent = ml.host ? 'Find another master' : 'Find the master';
   // Fallback: switch on = a scene of this PC; off = keeps playing the master's playlist
@@ -2290,7 +2582,7 @@ function renderLock(){
   document.body.classList.toggle('locked', on);
   const b = $('btnLock');
   b.classList.toggle('on', on);
-  b.innerHTML = on ? ICON.lock : ICON.unlock;
+  setHtml(b, on ? ICON.lock : ICON.unlock);   // rewritten at each poll, a click in between was lost
   b.title = on ? 'Locked: click to unlock' : 'Lock: no changes, no play / stop';
   if (on) closeMenu();
 }
@@ -2303,19 +2595,21 @@ $('btnLock').onclick = async () => {
 };
 
 // ---------- slave: where the master's media go on this PC ----------
-let mediaMode = null;   // 'same' | 'custom' (Settings > Medias location)
+let mediaMode = null;   // 'same' | 'custom' (Settings > Media location)
 function showMediaMode(){
   const same = mediaMode !== 'custom';
-  $('mdSw').classList.toggle('on', same);
+  $('mdSame').classList.toggle('on', mediaMode === 'same'); $('mdCustom').classList.toggle('on', mediaMode === 'custom');
   $('mdNote').textContent = mediaMode == null ? '' : same ? 'The media go where the master has them'
-                                                      : 'Off (custom): a folder on this PC for each master folder';
+                                                      : 'Custom: a folder on this PC for each master\u00a0folder';
 }
-$('mdSwRow').onclick = async () => {
-  const next = mediaMode === 'custom' ? 'same' : 'custom';
+const setMediaMode = async next => {
+  if (mediaMode === next) return;
   mediaMode = next; showMediaMode();
   try { await api('/api/slave/media_mode', {body: {mode: next}}); } catch(e) { flashError(e.message); }
   loadRoots();
 };
+$('mdSame').onclick = () => setMediaMode('same');
+$('mdCustom').onclick = () => setMediaMode('custom');
 async function loadRoots(){
   const box = $('rootsList');
   box.innerHTML = '<div class="status">Asking the master...</div>';

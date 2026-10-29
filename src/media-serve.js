@@ -27,8 +27,19 @@ class MediaServer {
   static key(p, st) { return `${p}|${st.size}|${Math.round(st.mtimeMs)}`; }
 
   _remember(key, hash) {
+    // one fingerprint per file: the ones of its older versions go (the
+    // cache grew with every edit of a media, review 2.2.2)
+    const prefix = key.slice(0, key.lastIndexOf('|', key.lastIndexOf('|') - 1) + 1);
+    for (const k of Object.keys(this.cache)) {
+      if (k !== key && k.startsWith(prefix) && k.slice(prefix.length).split('|').length === 2) delete this.cache[k];
+    }
     this.cache[key] = hash;
-    try { fs.writeFileSync(this.cacheFile, JSON.stringify(this.cache)); } catch (_) {}
+    // written once things calm down, not at every file
+    clearTimeout(this._saveTimer);
+    this._saveTimer = setTimeout(() => {
+      try { fs.writeFileSync(this.cacheFile, JSON.stringify(this.cache)); } catch (_) {}
+    }, 2000);
+    if (this._saveTimer.unref) this._saveTimer.unref();
   }
 
   /** [{path, size, mtime (ms), missing}] for these paths. */

@@ -65,7 +65,8 @@ function onOutbound(fn) { watchers.add(fn); return () => watchers.delete(fn); }
 function report(driver, kind, msg) { for (const w of watchers) try { w({ driver, kind, msg }); } catch (_) {} }
 
 /** A rule: {desc, test(message) -> bool}. RegExp-based helper. */
-const rule = (desc, re) => Object.freeze({ desc, test: s => typeof s === 'string' && re.test(s) });
+// source / flags: only to LOCK the lists by a test (test/tally-rules.test.js), never used to decide
+const rule = (desc, re) => Object.freeze({ desc, source: re.source, flags: re.flags, test: s => typeof s === 'string' && re.test(s) });
 
 /** Does one of these rules allow this message? */
 function allowed(rules, msg) { return rules.some(r => r.test(msg)); }
@@ -74,7 +75,8 @@ function allowed(rules, msg) { return rules.some(r => r.test(msg)); }
 const REGISTRY = new Map();
 function register(id, rules) {
   if (REGISTRY.has(id)) throw new Error(`tally rules of ${id} registered twice`);
-  const list = Object.freeze([...rules]);
+  // the rules themselves are frozen too: nobody can swap a rule's test afterwards
+  const list = Object.freeze([...rules].map(r => Object.freeze(r)));
   REGISTRY.set(id, list);
   return list;
 }
@@ -181,9 +183,10 @@ class GuardedSocket {
       let up = false;
       const t = setTimeout(() => { s.destroy(new Error('no answer')); }, this.timeout);
       s.once('connect', () => { up = true; clearTimeout(t); s.setNoDelay(true); s.setKeepAlive(true, 2000); resolve(); });
-      s.on('data', d => this.onData(d));
+      // a driver's mistake on a strange answer closes this connection, never the app (review 2.2.2)
+      s.on('data', d => { try { this.onData(d); } catch (e) { s.destroy(e); } });
       s.on('error', e => { clearTimeout(t); if (!up) reject(e); });
-      s.on('close', () => { clearTimeout(t); this.closed = true; if (!up) reject(new Error('connection closed')); this.onClose(); });
+      s.on('close', () => { clearTimeout(t); this.closed = true; if (!up) reject(new Error('connection closed')); try { this.onClose(); } catch (_) {} });
     });
   }
 
@@ -208,7 +211,7 @@ class GuardedUdp {
     this.sock = dgram.createSocket('udp4');
     live.add(this);
     this.onMessage = () => {}; this.onError = () => {};
-    this.sock.on('message', (m, r) => this.onMessage(m, r));
+    this.sock.on('message', (m, r) => { try { this.onMessage(m, r); } catch (e) { try { this.onError(e); } catch (_) {} } });
     this.sock.on('error', e => this.onError(e));
   }
 

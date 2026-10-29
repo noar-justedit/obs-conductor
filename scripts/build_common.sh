@@ -32,9 +32,14 @@ fetch_node() {
   local name="$1" base="https://nodejs.org/dist/v$NODE_VERSION"
   mkdir -p "$CACHE"
   local sums="$CACHE/SHASUMS256-v$NODE_VERSION.txt"
-  [ -s "$sums" ] || curl -fsSL "$base/SHASUMS256.txt" -o "$sums" || fail "could not reach nodejs.org"
+  if [ ! -s "$sums" ]; then
+    # kept only when it is the real list (a cut download or a hotel page is not)
+    curl -fsSL "$base/SHASUMS256.txt" -o "$sums.part" || { rm -f "$sums.part"; fail "could not reach nodejs.org"; }
+    grep -q "node-v$NODE_VERSION" "$sums.part" || { rm -f "$sums.part"; fail "nodejs.org's list could not be read (a web page instead?): try again"; }
+    mv "$sums.part" "$sums"
+  fi
   local want; want="$(awk -v f="$name" '$2 == f { print $1 }' "$sums")"
-  [ -n "$want" ] || fail "$name is not in nodejs.org's list for v$NODE_VERSION"
+  [ -n "$want" ] || { rm -f "$sums"; fail "$name is not in nodejs.org's list for v$NODE_VERSION (list deleted: run the build again)"; }
   local file="$CACHE/$name"
   if [ ! -s "$file" ] || [ "$(sha256 "$file")" != "$want" ]; then
     echo "Downloading $name..." >&2
@@ -76,9 +81,22 @@ run_tests() {
   fi
 }
 
+# check_template: config/ becomes the first settings of every install. After a
+# run from the sources (npm start) it may hold this Mac's role, addresses and
+# passwords: then nothing is built (review 2.2.2)
+check_template() {
+  local f="$ROOT/config/settings.yaml" bad
+  bad="$(grep -nE '^ *(role|master_host|host|user|master_obs_password|password): *"[^"]+"' "$f" \
+         | grep -vE '^[0-9]+: *host: *"localhost"' | grep -vE 'password: *"YOUR_WEBSOCKET_PASSWORD"' || true)"
+  grep -qE '^ *obs_hooked: *true' "$f" && bad="$bad obs_hooked: true"
+  [ -z "$bad" ] || fail "config/settings.yaml is not the clean template (a run from the sources wrote into it): $bad
+Put back the one from the ZIP, then build again."
+}
+
 # stage_app <dest>: the app folder (what runs, with the runtime next to it)
 stage_app() {
   local dest="$1"
+  check_template
   rm -rf "$dest"; mkdir -p "$dest"
   cp -R "$ROOT/src" "$dest/src"
   cp -R "$ROOT/config" "$dest/config_template"
@@ -92,3 +110,4 @@ stage_app() {
 ask() { local a; read -r -p "$1 [y/N] " a; [ "$a" = "y" ] || [ "$a" = "Y" ]; }
 
 [ -n "$APP_VERSION" ] || fail "no version found in package.json"
+command -v curl >/dev/null || fail "curl is missing (Linux: sudo apt install curl)"

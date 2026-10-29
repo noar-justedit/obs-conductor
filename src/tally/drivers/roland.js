@@ -48,9 +48,12 @@ class Session {
   }
 
   _open() {
+    if (this._closed) return Promise.reject(new Error('closed'));
     const pwd = String(this.cfg.password || '').trim();
     if (!/^\d{4}$/.test(pwd)) return Promise.reject(new Error('type the V-160HD network password (4 digits) in Settings'));
     const s = new GuardedSocket('roland', { host: this.cfg.host, port: this.cfg.port || PORT });
+    // closed while logging in: this connection is closed too (it stayed open, review 2.2.2)
+    this._pending = s;
     this.buf = ''; this.bytes = null; this.ver = null;
     return new Promise((resolve, reject) => {
       let state = 'login';
@@ -77,7 +80,8 @@ class Session {
             const e = new Error(`${this.ver.model}: model not supported (V-160HD only)`); e.permanent = true;
             return reject(e);
           }
-          state = 'ok'; this.sock = s;
+          if (this._closed) { state = 'closed'; s.close(); return reject(new Error('closed')); }
+          state = 'ok'; this.sock = s; this._pending = null;
           this.log.info(`Tally: connected to the ${this.model} at ${this.cfg.host}`);
           resolve();
         }
@@ -93,7 +97,8 @@ class Session {
       p = p.replace(/[\x02\x06\x11\x13]/g, '').replace(/^ACK/, '').trim();
       let m;
       if ((m = /^VER:([^,]+),(.+)$/.exec(p))) { this.ver = { model: m[1].trim(), version: m[2].trim() }; this.model = `Roland ${this.ver.model} ${this.ver.version}`; }
-      else if ((m = /^DTH:0C0000,([0-9A-F]+)$/i.exec(p))) { this.bytes = m[1].match(/../g).map(h => parseInt(h, 16)); this.bytesAt = Date.now(); }
+      // whole bytes only (an odd number of hex digits is ignored: it crashed the app, review 2.2.2)
+      else if ((m = /^DTH:0C0000,((?:[0-9A-F]{2})+)$/i.exec(p))) { this.bytes = m[1].match(/../g).map(h => parseInt(h, 16)); this.bytesAt = Date.now(); }
     }
   }
 
@@ -109,7 +114,12 @@ class Session {
     return { model: this.model || 'Roland V-160HD', inputs, tally };
   }
 
-  close() { const s = this.sock; this.sock = null; this.bytes = null; if (s) s.close(); }
+  close() {
+    this._closed = true;
+    const s = this.sock, p = this._pending; this.sock = null; this._pending = null; this.bytes = null;
+    if (s) s.close();
+    if (p && p !== s) p.close();
+  }
 }
 
 /** Scan: the V-160HD greets with "Enter password:" (nothing is sent). */

@@ -86,6 +86,8 @@ class Session {
     if (!this.frame) {
       const f = await this.call('getFrameSettings');
       const fr = arr(f && f.System && f.System.FrameCollection && f.System.FrameCollection.Frame)[0] || {};
+      // identity (2.3.0): an Event Master frame, or nothing else is read
+      if (fr.FrameType == null && !fr.FrameTypeName) { const e = new Error('this machine doesn\'t answer like a Barco Event Master: nothing else is read'); e.permanent = true; throw e; }
       this.frame = { type: fr.FrameType, name: fr.FrameTypeName || 'Event Master', version: fr.Version || '' };
       this.log.info(`Tally: connected to the Barco ${this.frame.name} at ${this.cfg.host}`);
     }
@@ -142,5 +144,7 @@ class Session {
 module.exports = {
   id: 'eventmaster', label: 'Barco E2 / S3 / EX / Encore 3', vendor: 'Barco', port: 9999, portHint: 'HTTP 9999',
   auth: null, scanPorts: [], scanHint: 'not scanned (its reads are POST requests): choose it in the list', pollMs: 700, source: 'companion-module-barco-eventmaster',
+  // what the hand-written rule depends on: locked by test/tally-rules.test.js
+  RULE_PARTS: { methods: METHODS, params_of: PARAMS_OF, check: String(isReadCall) },
   RULES, FORBIDDEN, METHODS, isReadCall, create: (cfg, log) => new Session(cfg, log),
 };

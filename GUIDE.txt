@@ -82,12 +82,10 @@ Playlist tab (master)
                  Custom (type any, decimals allowed, Enter) and Auto-detect:
                  "Longest video" (the longest one shown that doesn't loop)
                  or one of the scene's videos with its length.
-               film icon (grey, only when the scene has a video): menu of
-                 the scene's videos with their length - pick the one whose
-                 length is the duration. Adding a scene picks the longest
-                 one that is shown and doesn't loop (a background loop has
-                 no end); none: the default duration. Looping and hidden
-                 videos are listed, marked "loop" / "hidden".
+                 Adding a scene picks the longest video that is shown and
+                 doesn't loop (a background loop has no end); none: the
+                 default duration. Looping and hidden videos are listed,
+                 marked "loop" / "hidden".
                  When OBS gives no length (file not loaded, some ProRes
                  .mov), it is read in the file itself (.mov / .mp4 only).
                transition: two badges, its name (FADE, CUT, ...) and its
@@ -182,8 +180,9 @@ Settings tab (everything is saved as soon as a field is left)
                      default transition and its length (two menus, the
                      same as the playlist badges: usual lengths 0.25s to
                      3s, or "Other" for any length), default scene
-                     duration - used by every cue that doesn't set its own,
-                     in all playlists; "Restart videos when their scene goes
+                     duration (same menu as a cue's duration: usual
+                     lengths 5s to 60s, or Custom) - used by every cue that
+                     doesn't set its own, in all playlists; "Restart videos when their scene goes
                      on air" (leave off if the OBS sources already restart on
                      activation).
    WebSocket server  this PC's IP, OBS's WebSocket port and password (what
@@ -197,14 +196,19 @@ Settings tab (everything is saved as soon as a field is left)
                      confirmation). The dock then waits for it.
    On a slave:
    Master            the master followed, its address, the link state,
-                     "Find another master".
+                     "Find another master". A slave only uses answers
+                     sealed by its master with its OBS password: a master
+                     older than 2.3.0 (update it), a master whose OBS has no
+                     WebSocket password (set one), or another machine at its
+                     address is refused, and the dock says which (orange
+                     when you have something to do). Scenes still follow.
    Fallback          what this PC does when it loses the master: switch
                      "Show a fallback scene" (on: the scene chosen in
                      "Choose a scene"; off: keeps playing the master's
                      playlist).
-   Medias location   switch "Same as master" on: the media go where the
+   Media location    two buttons. "Same as master": the media go where the
                      master has them (a master drive missing here is shown
-                     in orange). Off (custom): each master folder and where
+                     in orange). "Custom": each master folder and where
                      it goes here ("Choose..." to pick a folder; the cross
                      puts it back to the same path). The folders chosen are
                      kept when switching back to "Same as master". Changing
@@ -237,9 +241,21 @@ Settings > Tally, on each PC:
                  API login, user Kairos). The password stays on this PC.
    Input of this OBS   pick it in the list read from the switcher (refresh
                  button next to it); where each input is now is shown.
+   Outputs that count   the outputs read on the switcher (PGM, Mix 2, Aux 1,
+                 Screen 1...). All count as on air; untick one that must not
+                 light ON AIR / PVW (an aux used for recording, a second mix).
+Nothing is read from a machine that doesn't say what it is (another device
+at that address): the dock says so, and nothing more is sent to it.
 "Test connection" connects to the switcher again and says, in green, its
 model, how long it took to answer and how many inputs it has (red: why it
 failed; reads only).
+"Tally assistant" (below the test button) guides you through a short test of
+your switcher: connection, model, input names, input on air, in preview,
+nowhere, then optional cases (key / overlay, other outputs, switcher lost
+and back). You move the sources on the switcher yourself. At the end it gives
+you a report to copy, save as a file, or paste in a GitHub issue (it opens
+one for you): your password and the switcher's address are hidden, the input
+names are in it. It helps get a new switcher supported. Reads only.
 OBS Conductor never sends a command to the switcher: it only reads.
 The tally is in BETA. It starts CUT each time the app starts: "Turn the
 tally on" in Settings > Tally. While it runs, a red STOP TALLY button at the top

@@ -24,7 +24,9 @@
 
 const { execFile } = require('child_process');
 
-const psQuote = s => "'" + String(s == null ? '' : s).replace(/'/g, "''") + "'";
+// PowerShell also ends a '...' string on the typographic quotes ‘ ’ ‚ ‛: all
+// are doubled (a folder named "Soirée d’ouverture" broke the dialogs, review 2.2.2)
+const psQuote = s => "'" + String(s == null ? '' : s).replace(/['\u2018\u2019\u201A\u201B]/g, '$&$&') + "'";
 
 let lastDir = null;   // the folder of the last file saved or opened
 

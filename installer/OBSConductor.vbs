@@ -7,6 +7,7 @@
 '   wscript OBSConductor.vbs /stop        stop it
 '   wscript OBSConductor.vbs /adddock     add the dock to OBS again (OBS closed)
 '   wscript OBSConductor.vbs /log         open the log
+'   wscript OBSConductor.vbs /autostart   start with Windows: quiet if already running
 
 Option Explicit
 Const TITLE = "OBS Conductor"
@@ -36,6 +37,11 @@ End Function
 Function LogFile()
   LogFile = sh.ExpandEnvironmentStrings("%LOCALAPPDATA%") & "\OBSConductor\logs\OBSConductor.log"
 End Function
+
+' started with Windows (2.3.0: for every user): no message if it already runs
+Dim auto
+auto = (mode = "/autostart")
+If auto Then mode = ""
 
 Select Case mode
   Case "/stop"
@@ -81,7 +87,7 @@ Select Case mode
 
   Case Else
     If AppProcesses().Count > 0 Then
-      MsgBox "OBS Conductor is already running.", vbInformation, TITLE
+      If Not auto Then MsgBox "OBS Conductor is already running.", vbInformation, TITLE
       WScript.Quit 0
     End If
     sh.Run exe & """" & dir & "\app\src\main.js""" & args, 0, False

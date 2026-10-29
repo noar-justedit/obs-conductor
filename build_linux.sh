@@ -133,13 +133,26 @@ echo "$DEB_OUT"
 
 # ---- AppImage -------------------------------------------------------------------
 say "AppImage"
-TOOL="$CACHE/appimagetool-x86_64.AppImage"
-if [ ! -s "$TOOL" ]; then
-  echo "Downloading appimagetool..."
-  curl -fL --progress-bar https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -o "$TOOL.part" \
-    || fail "appimagetool could not be downloaded"
-  mv "$TOOL.part" "$TOOL"
-fi
+# appimagetool and the AppImage runtime: fixed versions, checked against their
+# SHA-256 (published on GitHub with the releases), like Node.js (2.3.0). The
+# moving "continuous" builds are not used: what goes into the AppImage is
+# always the same, known code.
+AIT_VERSION="1.9.1"
+AIT_SHA256="ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0"
+RUNTIME_VERSION="20251108"
+RUNTIME_SHA256="2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d"
+fetch_checked() {   # fetch_checked <url> <file> <sha256>
+  if [ ! -s "$2" ] || [ "$(sha256 "$2")" != "$3" ]; then
+    echo "Downloading $(basename "$2")..."
+    curl -fL --progress-bar "$1" -o "$2.part" || { rm -f "$2.part"; fail "$(basename "$2") could not be downloaded"; }
+    mv "$2.part" "$2"
+  fi
+  [ "$(sha256 "$2")" = "$3" ] || { rm -f "$2"; fail "$(basename "$2") does not match its fingerprint - deleted, run the build again"; }
+}
+TOOL="$CACHE/appimagetool-$AIT_VERSION-x86_64.AppImage"
+RUNTIME="$CACHE/runtime-$RUNTIME_VERSION-x86_64"
+fetch_checked "https://github.com/AppImage/appimagetool/releases/download/$AIT_VERSION/appimagetool-x86_64.AppImage" "$TOOL" "$AIT_SHA256"
+fetch_checked "https://github.com/AppImage/type2-runtime/releases/download/$RUNTIME_VERSION/runtime-x86_64" "$RUNTIME" "$RUNTIME_SHA256"
 chmod +x "$TOOL"
 APPDIR="$WORK/OBSConductor.AppDir"
 app_tree "$APPDIR/usr/lib/obs-conductor"
@@ -156,7 +169,8 @@ cp src/icons/app-512.png "$APPDIR/.DirIcon"
 APPIMAGE_OUT="$DIST/OBSConductor-$APP_VERSION-x86_64.AppImage"
 rm -f "$APPIMAGE_OUT"
 # no FUSE needed to run the tool itself
-ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 "$TOOL" --no-appstream "$APPDIR" "$APPIMAGE_OUT" >"$WORK/appimagetool.log" 2>&1 \
+# the runtime given (checked above): the tool downloads nothing itself
+ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 "$TOOL" --no-appstream --runtime-file "$RUNTIME" "$APPDIR" "$APPIMAGE_OUT" >"$WORK/appimagetool.log" 2>&1 \
   || { tail -20 "$WORK/appimagetool.log"; fail "appimagetool failed"; }
 chmod +x "$APPIMAGE_OUT"
 echo "$APPIMAGE_OUT"

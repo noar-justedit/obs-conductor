@@ -39,6 +39,22 @@ const BY_ID = Object.fromEntries(DRIVERS.map(d => [d.id, d]));
 
 const RETRY_MS = 3000;
 
+/**
+ * The output a tally entry belongs to (2.3.0, Settings > Tally > outputs):
+ * "Mix 2 preview" -> "Mix 2", "PGM (layer)" -> "PGM", the preview of the main
+ * program ("PVW", "PST", "Preview") -> the main program. An output unticked
+ * in Settings doesn't count: neither its on air nor its preview.
+ */
+function outputOf(where) {
+  const s = String(where).replace(/ \((layer|background)\)$/, '').replace(/ preview$/, '');
+  return ({ PVW: 'PGM', PST: 'PGM', Preview: 'On air' })[s] || s;
+}
+const countsOnly = (t, excluded) => {
+  if (!excluded || !excluded.length) return t;
+  const ex = new Set(excluded), keep = l => (l || []).filter(w => !ex.has(outputOf(w)));
+  return { ...t, pgm: keep(t.pgm), pvw: keep(t.pvw) };
+};
+
 /** What the dock shows in the machine list. */
 const catalog = () => DRIVERS.map(d => ({ id: d.id, label: d.label, vendor: d.vendor, port: d.port, port_hint: d.portHint,
   scanned: !!d.probe, scan_hint: d.scanHint || '',
@@ -53,7 +69,8 @@ class TallyEngine {
     this.sess = null; this.key = null; this.last = null;   // last = {sess, res}
     this.blocked = null;                                     // {key, error}: no retry until the config changes
     this._stopped = false;
-    this._timer = setTimeout(() => this._loop(), 500);
+    this._gen = 0;   // one polling chain only: a STOP TALLY during a read doesn't start a second one
+    this._timer = setTimeout(() => this._loop(this._gen), 500);
   }
 
   stop() { this._stopped = true; clearTimeout(this._timer); this._close(); }
@@ -114,12 +131,13 @@ class TallyEngine {
     this.state = { state: null, error: null, connected: false };
     this.log.info(on ? 'Tally STOPPED (Stop tally): nothing is sent to any switcher' : 'Tally turned on');
     clearTimeout(this._timer);
-    if (!this._stopped) this._timer = setTimeout(() => this._loop(), on ? 1000 : 50);
+    const gen = ++this._gen;
+    if (!this._stopped) this._timer = setTimeout(() => this._loop(gen), on ? 1000 : 50);
     return guard.isCut();
   }
 
-  async _loop() {
-    if (this._stopped) return;
+  async _loop(gen) {
+    if (this._stopped || gen !== this._gen) return;
     const c = this.getConfig(), d = this.driver(c);
     let wait = (d && d.pollMs) || 1000;
     try {
@@ -136,19 +154,21 @@ class TallyEngine {
       } else {
         this.blocked = null;
         const res = await this._read(this._session(c));
-        const t = (res.tally && res.tally[c.input]) || { pgm: [], pvw: [] };
+        const t = countsOnly((res.tally && res.tally[c.input]) || { pgm: [], pvw: [] }, c.exclude_outputs);
         const st = t.pgm.length ? 'pgm' : t.pvw.length ? 'pvw' : 'none';
         if (st !== this.state.state) this.log.info(`Tally "${c.input_name || c.input}": ${st === 'pgm' ? 'ON AIR on ' + t.pgm.join(', ') : st === 'pvw' ? 'PVW on ' + t.pvw.join(', ') : 'off'}`);
         this.state = { state: st, error: null, connected: true, pgm: t.pgm, pvw: t.pvw, multiviewer: !!t.multiviewer };
       }
     } catch (e) {
+      // stopped meanwhile (STOP TALLY): not an error of the switcher
+      if (gen !== this._gen || e instanceof guard.Cut || guard.isCut()) { if (!this._stopped && gen === this._gen) this._timer = setTimeout(() => this._loop(gen), 1000); return; }
       if (this.state.connected || !this.state.error) this.log.warn(`Tally: ${e.message}`);
       const error = `${d ? d.label : 'Switcher'} not reachable: ${e.message}`;
       if (e.permanent) this.blocked = { key: this._keyOf(c), error: `${d ? d.label : 'Switcher'}: ${e.message}` };
       this.state = { state: null, error: e.permanent ? this.blocked.error : error, connected: false };
       wait = RETRY_MS;
     }
-    if (!this._stopped) this._timer = setTimeout(() => this._loop(), wait);
+    if (!this._stopped && gen === this._gen) this._timer = setTimeout(() => this._loop(gen), wait);
   }
 
   /** Settings: the machine's inputs [{id, name}], and where each one is now. */
@@ -156,9 +176,15 @@ class TallyEngine {
     if (guard.isCut()) throw new guard.Cut();
     const c = this.getConfig();
     if (!this.driver(c) || !c.host) return { inputs: [], states: {} };
+    // a model refused for good (Roland V-60HD...): not asked again until the settings change
+    if (this.blocked && this.blocked.key === this._keyOf(c)) throw new Error(this.blocked.error);
     const s = this._session(c);
     const res = this._lastOf(s) || await this._read(s);
-    return { inputs: res.inputs, states: res.tally || {}, model: res.model };
+    // the outputs seen on the machine (and the ones unticked, so they can be ticked again)
+    const outs = new Set(c.exclude_outputs || []);
+    for (const t of Object.values(res.tally || {})) for (const w of [...(t.pgm || []), ...(t.pvw || [])]) outs.add(outputOf(w));
+    return { inputs: res.inputs, states: res.tally || {}, model: res.model,
+             outputs: [...outs].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })), excluded: c.exclude_outputs || [] };
   }
 
   /** Settings > Test connection: a new connection, one full read. Reads only. */
@@ -183,6 +209,8 @@ class TallyEngine {
   async debug() {
     if (guard.isCut()) throw new guard.Cut();
     const c = this.getConfig();
+    // no address: nothing is read (an empty address would mean this PC itself)
+    if (!c.host) throw new Error('type the switcher\'s address first');
     const s = this._session(c);
     const res = await this._read(s);
     return { device: c.device, input: c.input, tally: res.tally[c.input] || null, model: res.model,
@@ -244,7 +272,7 @@ function suggestInput(inputs, pcName) {
 
 const pixelhue = BY_ID.pixelhue;
 module.exports = {
-  TallyEngine, DRIVERS, BY_ID, catalog, scan, FAKE_SCAN, suggestInput,
+  TallyEngine, DRIVERS, BY_ID, catalog, scan, FAKE_SCAN, suggestInput, outputOf, countsOnly,
   // PixelHue helpers, as before (tests)
   stateOf: pixelhue.stateOf, tallyOf: pixelhue.tallyOf, token: pixelhue.token, READ_ONLY: pixelhue.READ_ONLY, getJson: pixelhue.getJson,
 };

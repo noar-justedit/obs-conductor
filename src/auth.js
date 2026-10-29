@@ -62,4 +62,23 @@ const sealOk = (password, text, sig) => {
 };
 const updateText = (version, inst) => `${version}|${inst.size}|${inst.sha256}`;
 
-module.exports = { sign, verify, HEADER, setClockSkew, seal, sealOk, updateText };
+/*
+ * Master -> slave answers (2.3.0, review 2.2.2): every JSON answer to a
+ * request carrying a signature is sealed by the master:
+ *
+ *   header  X-OBSP-Seal: HMAC-SHA256("resp|" + password, <the request's X-OBSP-Auth> + "|" + body)
+ *
+ * The slave checks it before using the answer: only the PC that knows the
+ * OBS password can answer, and an answer can't be replayed for another
+ * request (the request's signature carries its time and address). Strict
+ * (Noar's choice): an answer without a valid seal is refused.
+ */
+const RESP_HEADER = 'x-obsp-seal';
+const sealAnswer = (password, requestSig, body) => crypto.createHmac('sha256', 'resp|' + String(password || ''))
+  .update(String(requestSig) + '|').update(body).digest('base64url');
+const answerOk = (password, requestSig, body, sig) => {
+  const want = Buffer.from(sealAnswer(password, requestSig, body)), got = Buffer.from(String(sig || ''));
+  return want.length === got.length && crypto.timingSafeEqual(want, got);
+};
+
+module.exports = { sign, verify, HEADER, setClockSkew, seal, sealOk, updateText, RESP_HEADER, sealAnswer, answerOk };

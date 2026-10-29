@@ -127,7 +127,17 @@ class ObsClient extends EventEmitter {
   _onMessage(raw) {
     let msg;
     try { msg = JSON.parse(raw); } catch (_) { return; }
-    const { op, d } = msg;
+    // anything can answer on that port (a fake or broken OBS): a malformed
+    // message is ignored, it never stops the app (review 2.2.2)
+    if (!msg || typeof msg !== 'object') return;
+    try { this._handle(msg.op, msg.d || {}); }
+    catch (e) {
+      if (!this.connected) this.lastError = `${this.cfg.label}: unexpected message (${e.message})`;
+      console.error(`${this.cfg.label}: message ignored: ${e.stack || e.message}`);
+    }
+  }
+
+  _handle(op, d) {
     if (op === 0) {                       // Hello
       const ident = { rpcVersion: 1, eventSubscriptions: this.cfg.events };
       if (d.authentication) {
@@ -143,7 +153,7 @@ class ObsClient extends EventEmitter {
     } else if (op === 5) {                // Event
       this.emit('event', d.eventType, d.eventData || {});
     } else if (op === 7) {                // RequestResponse
-      const p = this._pending.get(d.requestId);
+      const p = d.requestId != null ? this._pending.get(d.requestId) : null;
       if (!p) return;
       this._pending.delete(d.requestId);
       clearTimeout(p.timer);

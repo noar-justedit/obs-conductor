@@ -3,7 +3,8 @@
 # OBS Conductor - builds the macOS version. Double-click it (on a Mac).
 #
 # Result: dist/OBSConductor-X.Y.Z-mac.dmg
-#   one app for every Mac (Apple Silicon and Intel), macOS 11 or newer,
+#   for Macs with Apple Silicon (M1 and newer), macOS 11 or newer (no Intel
+#   version since 2.3.0, Noar's choice),
 #   signed with your Developer ID and notarized by Apple.
 #
 # Needs: Xcode's command line tools (clang, codesign, notarytool), installed
@@ -20,7 +21,7 @@ trap 'echo; read -r -p "Press Enter to close..." _' EXIT
 
 say "=== OBS Conductor $APP_VERSION - macOS build ==="
 [ "$(uname -s)" = "Darwin" ] || fail "this script runs on a Mac"
-command -v clang >/dev/null && command -v codesign >/dev/null && command -v lipo >/dev/null \
+command -v clang >/dev/null && command -v codesign >/dev/null \
   || fail "Xcode's command line tools are missing: run  xcode-select --install  then this script again"
 
 # ---- 1. signing identity + notarization profile --------------------------
@@ -45,27 +46,34 @@ fi
 # ---- 2. Node.js for both processors + tests --------------------------------
 host_node
 run_tests
-say "Node.js $NODE_VERSION for Apple Silicon and Intel"
+say "Node.js $NODE_VERSION for Apple Silicon"
 ARM="$(fetch_node "node-v$NODE_VERSION-darwin-arm64.tar.gz")"
-X64="$(fetch_node "node-v$NODE_VERSION-darwin-x64.tar.gz")"
 WORK="$ROOT/build/mac"; rm -rf "$WORK"; mkdir -p "$WORK"
-tar -xzf "$ARM" -C "$WORK"; tar -xzf "$X64" -C "$WORK"
+tar -xzf "$ARM" -C "$WORK"
+NODE_DIR="$WORK/node-v$NODE_VERSION-darwin-arm64"
 
 # ---- 3. the app bundle ------------------------------------------------------
 say "Putting the app together"
 APP="$WORK/OBS Conductor.app"
 C="$APP/Contents"
 mkdir -p "$C/MacOS" "$C/Resources"
-lipo -create "$WORK/node-v$NODE_VERSION-darwin-arm64/bin/node" "$WORK/node-v$NODE_VERSION-darwin-x64/bin/node" -output "$C/MacOS/node"
-cp "$WORK/node-v$NODE_VERSION-darwin-arm64/LICENSE" "$C/Resources/NODE-LICENSE.txt"
+cp "$NODE_DIR/bin/node" "$C/MacOS/node"
+# Node.js's licence goes with it (MIT: its text must be shipped). Looked for
+# wherever the archive put it; none: stop and show what the archive holds.
+NODE_LIC="$(find "$NODE_DIR" -maxdepth 3 -type f \( -iname 'LICENSE' -o -iname 'LICENSE.md' -o -iname 'LICENSE.txt' \) 2>/dev/null | head -1)"
+if [ -z "$NODE_LIC" ]; then
+  ls -la "$NODE_DIR"
+  fail "Node.js's LICENSE file is not in the archive (contents above): send this window"
+fi
+cp "$NODE_LIC" "$C/Resources/NODE-LICENSE.txt"
 stage_app "$C/Resources/app"
 # the launcher: a small program that starts Node.js with the app
-clang -O2 -arch arm64 -arch x86_64 -mmacosx-version-min=11.0 -o "$C/MacOS/OBSConductor" installer/mac/launcher.c \
+clang -O2 -arch arm64 -mmacosx-version-min=11.0 -o "$C/MacOS/OBSConductor" installer/mac/launcher.c \
   || fail "the launcher did not compile"
 # the menu bar icon (top right of the screen): a second small program, started
 # by the app. If it does not compile the app is built without it (no icon,
 # everything else works); the dock's Settings > Quit and --stop still quit.
-if clang -O2 -fobjc-arc -arch arm64 -arch x86_64 -mmacosx-version-min=11.0 -framework Cocoa \
+if clang -O2 -fobjc-arc -arch arm64 -mmacosx-version-min=11.0 -framework Cocoa \
      -o "$C/MacOS/OBSConductorMenu" installer/mac/menubar.m 2>"$WORK/menubar.log"; then
   echo "Menu bar icon: built"
 else
@@ -87,7 +95,8 @@ printf 'APPL????' > "$C/PkgInfo"
 notarize() {   # notarize <file>
   [ -n "$NOTARY_PROFILE" ] || return 0
   echo "Notarizing $(basename "$1") (a few minutes)..."
-  xcrun notarytool submit "$1" --keychain-profile "$NOTARY_PROFILE" --wait | tee "$WORK/notary.log"
+  # its own error must reach the message below (set -e would stop here silently)
+  xcrun notarytool submit "$1" --keychain-profile "$NOTARY_PROFILE" --wait 2>&1 | tee "$WORK/notary.log" || true
   grep -q "status: Accepted" "$WORK/notary.log" || fail "Apple refused the notarization - see above (xcrun notarytool log <id> --keychain-profile $NOTARY_PROFILE)"
 }
 if [ -n "$SIGN_ID" ]; then
@@ -127,5 +136,11 @@ fi
 
 say "=== Done ==="
 echo "$DMG"
-[ -n "$SIGN_ID" ] && [ -n "$NOTARY_PROFILE" ] && spctl -a -t open --context context:primary-signature -v "$DMG" 2>&1 | tail -1
+if [ -n "$SIGN_ID" ] && [ -n "$NOTARY_PROFILE" ]; then
+  spctl -a -t open --context context:primary-signature -v "$DMG" 2>&1 | tail -1 || true
+else
+  # other Macs block an app that is not notarized: said plainly (review 2.2.2)
+  printf '\n\033[33mWARNING: this .dmg is NOT notarized%s: other Macs will block it. Do not publish it.\033[0m\n' \
+    "$([ -z "$SIGN_ID" ] && echo ' (not even signed)')"
+fi
 open -R "$DMG"

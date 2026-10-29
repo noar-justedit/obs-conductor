@@ -82,7 +82,11 @@ class Session {
   // which screens / aux / layers exist: read again every 30 s
   async _layout() {
     const sys = await this.get('/system');
-    this.model = (sys && sys.type) ? `Analog Way ${sys.type}` : 'Analog Way LivePremier';
+    // identity (2.3.0): an Aquilon / LivePremier (type "AQL..."), or nothing else is read
+    if (!sys || !/^AQL|aquilon|livepremier/i.test(String(sys.type || ''))) {
+      const e = new Error('this machine doesn\'t say it is an Analog Way Aquilon: nothing else is read'); e.permanent = true; throw e;
+    }
+    this.model = `Analog Way ${sys.type}`;
     if (!this.layout) this.log.info(`Tally: connected to the ${this.model} at ${this.cfg.host}`);
     const outs = [];
     for (let s = 1; s <= MAX_SCREENS; s++) {

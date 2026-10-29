@@ -14,7 +14,9 @@
  *   <overlays><overlay number="1">5</overlay>              input 5 on air in
  *     overlay 1; preview="True": the overlay is in preview
  * An input is identified by its key (its number changes when inputs move).
- * Mix 2..16 (other outputs) are not counted as on air.
+ * <mix number="2"><active>/<preview>: Mix 2..16, reported as their own outputs
+ * ("Mix 2"...): Settings > Tally says which outputs count (2.3.0).
+ * Identity (2.3.0): nothing is sent before vMix greets with "VERSION OK".
  */
 
 const { GuardedSocket, rule, register } = require('../guard');
@@ -46,6 +48,12 @@ function parseXml(xml) {
     const a = attrs(m[1]), n = parseInt(m[2], 10);
     if (n) r.overlays.push({ number: parseInt(a.number, 10), input: n, preview: /^true$/i.test(a.preview || '') });
   }
+  // Mix 2..16
+  r.mixes = [];
+  for (const m of xml.matchAll(/<mix\s([^>]*)>([\s\S]*?)<\/mix>/g)) {
+    const n = parseInt(attrs(m[1]).number, 10), a = /<active>(\d+)<\/active>/.exec(m[2]), p = /<preview>(\d+)<\/preview>/.exec(m[2]);
+    if (n >= 2) r.mixes.push({ number: n, active: a ? parseInt(a[1], 10) : 0, preview: p ? parseInt(p[1], 10) : 0 });
+  }
   // Mix 1 = the <active> / <preview> outside the <mix> blocks (Mix 2..16)
   const root = xml.replace(/<inputs>[\s\S]*?<\/inputs>/, '').replace(/<mix\s[\s\S]*?<\/mix>/g, '');
   const act = /<active>(\d+)<\/active>/.exec(root), pre = /<preview>(\d+)<\/preview>/.exec(root);
@@ -67,6 +75,10 @@ function tallyFrom(x) {
   mark(byNum.get(x.active), 'pgm', 'PGM');
   mark(byNum.get(x.preview), 'pvw', 'PVW');
   for (const o of x.overlays) mark(byNum.get(o.input), o.preview ? 'pvw' : 'pgm', `Overlay ${o.number}`);
+  for (const m of x.mixes || []) {
+    mark(byNum.get(m.active), 'pgm', `Mix ${m.number}`);
+    mark(byNum.get(m.preview), 'pvw', `Mix ${m.number} preview`);
+  }
   return t;
 }
 
@@ -86,9 +98,16 @@ class Session {
     const s = new GuardedSocket('vmix', { host: this.cfg.host, port: this.cfg.port || PORT });
     s.onData = d => { if (this.sock === s) this._data(d); };
     s.onClose = () => { if (this.sock !== s) return; this.connected = false; this.sock = null; this._fail(new Error('connection closed')); };
-    this.sock = s; this.buf = Buffer.alloc(0); this.want = 0;
+    this.sock = s; this.buf = Buffer.alloc(0); this.want = 0; this.greeted = false;
     try { await s.connect(); } catch (e) { if (this.sock === s) this.sock = null; throw e; }
     if (this._closed) { s.close(); throw new Error('closed'); }
+    // identity: vMix says hello first; nothing is sent to anything else
+    for (let w = 0; w < 30 && !this.greeted && this.sock === s; w++) await new Promise(r => setTimeout(r, 100));
+    if (!this.greeted) {
+      if (this.sock === s) this.sock = null;
+      s.close();
+      const e = new Error('this machine doesn\'t greet like vMix (no "VERSION OK"): nothing was sent'); e.permanent = true; throw e;
+    }
     this.connected = true;
     this.log.info(`Tally: connected to vMix at ${this.cfg.host}`);
   }
@@ -111,7 +130,8 @@ class Session {
       const line = this.buf.subarray(0, nl).toString('utf8');
       this.buf = this.buf.subarray(nl + 2);
       const m = /^XML (\d+)$/.exec(line);
-      if (m) this.want = parseInt(m[1], 10);
+      if (/^VERSION OK/.test(line)) this.greeted = true;
+      else if (m) this.want = parseInt(m[1], 10);
       else if (/^XML ER/.test(line)) { const w = this.waiters.shift(); if (w) w.reject(new Error(line)); }
     }
   }

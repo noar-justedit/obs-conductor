@@ -129,6 +129,9 @@ Section "$(SecApp)" SecApp
     Delete "$INSTDIR\unins000.msg"
   ${EndIf}
   DeleteRegKey HKLM "${INNO_KEY}"
+  SetRegView 32
+  DeleteRegKey HKLM "${INNO_KEY}"
+  SetRegView 64
   ; previous copy of the app's sources (removed files must not linger)
   RMDir /r "$INSTDIR\app"
   ; the app under its former names
@@ -166,6 +169,7 @@ Section "$(SecApp)" SecApp
   Pop $0
   ; options: set again below when chosen
   DeleteRegValue HKCU "${RUN_KEY}" "OBS Conductor"
+  DeleteRegValue HKLM "${RUN_KEY}" "OBS Conductor"
   nsExec::Exec '"$SYSDIR\netsh.exe" advfirewall firewall delete rule name="OBS Conductor"'
   Pop $0
   nsExec::Exec '"$SYSDIR\netsh.exe" advfirewall firewall delete rule name="OBS Conductor - OBS WebSocket"'
@@ -190,9 +194,11 @@ Section "$(SecApp)" SecApp
   WriteRegStr HKLM "${UNINST_KEY}" "OptFirewall" "0"
 SectionEnd
 
-; start with Windows: Run key of the user who installs (no admin rights at logon)
+; start with Windows: for every user of this PC (2.3.0, Noar's choice). The
+; installer runs as administrator: the "current user" was the account that
+; approved it, not always the one who uses OBS. No admin rights at logon.
 Section "$(SecStartup)" SecStartup
-  WriteRegStr HKCU "${RUN_KEY}" "OBS Conductor" '"$SYSDIR\wscript.exe" "$INSTDIR\${VBS}"'
+  WriteRegStr HKLM "${RUN_KEY}" "OBS Conductor" '"$SYSDIR\wscript.exe" "$INSTDIR\${VBS}" /autostart'
   WriteRegStr HKLM "${UNINST_KEY}" "OptStartup" "1"
 SectionEnd
 
@@ -202,7 +208,13 @@ SectionEnd
 Section "$(SecFirewall)" SecFirewall
   nsExec::Exec '"$SYSDIR\netsh.exe" advfirewall firewall add rule name="OBS Conductor" dir=in action=allow program="$INSTDIR\${EXE}" protocol=TCP remoteip=localsubnet enable=yes profile=private,domain'
   Pop $0
-  nsExec::Exec '"$SYSDIR\netsh.exe" advfirewall firewall add rule name="OBS Conductor - OBS WebSocket" dir=in action=allow protocol=TCP localport=4455 remoteip=localsubnet enable=yes profile=private,domain'
+  ; OBS's WebSocket: for OBS itself when it is where its installer puts it
+  ; (any port set in OBS works); otherwise port 4455, OBS's default (2.3.0)
+  ${If} ${FileExists} "$PROGRAMFILES64\obs-studio\bin\64bit\obs64.exe"
+    nsExec::Exec '"$SYSDIR\netsh.exe" advfirewall firewall add rule name="OBS Conductor - OBS WebSocket" dir=in action=allow program="$PROGRAMFILES64\obs-studio\bin\64bit\obs64.exe" protocol=TCP remoteip=localsubnet enable=yes profile=private,domain'
+  ${Else}
+    nsExec::Exec '"$SYSDIR\netsh.exe" advfirewall firewall add rule name="OBS Conductor - OBS WebSocket" dir=in action=allow protocol=TCP localport=4455 remoteip=localsubnet enable=yes profile=private,domain'
+  ${EndIf}
   Pop $0
   WriteRegStr HKLM "${UNINST_KEY}" "OptFirewall" "1"
 SectionEnd
@@ -213,6 +225,23 @@ Section "-restart after an update"
     Call LaunchApp
   ${EndIf}
 SectionEnd
+
+; the install folder must be a folder of its own: "app" and "update" are
+; deleted and replaced in it (D:\ or C:\Program Files would lose theirs)
+Function .onVerifyInstDir
+  StrLen $0 $INSTDIR
+  ${If} $0 <= 3
+    Abort
+  ${EndIf}
+  ${If} $INSTDIR == $PROGRAMFILES64
+  ${OrIf} $INSTDIR == $PROGRAMFILES32
+  ${OrIf} $INSTDIR == $WINDIR
+  ${OrIf} $INSTDIR == $PROFILE
+  ${OrIf} $INSTDIR == $DESKTOP
+  ${OrIf} $INSTDIR == $DOCUMENTS
+    Abort
+  ${EndIf}
+FunctionEnd
 
 Function .onInit
   ${IfNot} ${RunningX64}
@@ -234,8 +263,21 @@ Function .onInit
   ${IfNot} ${Errors}
     SetSilent silent
   ${EndIf}
-  ; an install of the 1.x installer (Inno Setup): same folder
+  ; an install of the 1.x installer (Inno Setup): same folder. Inno may have
+  ; written its key in the 32-bit view: both are read (review 2.2.2)
+  SetRegView 32
   ReadRegStr $1 HKLM "${INNO_KEY}" "InstallLocation"
+  SetRegView 64
+  ${If} $1 == ""
+    ReadRegStr $1 HKLM "${INNO_KEY}" "InstallLocation"
+  ${EndIf}
+  ${If} $1 != ""
+    StrCpy $INSTDIR $1
+  ${EndIf}
+  ; the folder of the previous 2.x install (an update goes there, not to the
+  ; default folder). InstallDirRegKey reads the 32-bit view, where this
+  ; 64-bit key is not: read here (review 2.2.2)
+  ReadRegStr $1 HKLM "${UNINST_KEY}" "InstallLocation"
   ${If} $1 != ""
     StrCpy $INSTDIR $1
   ${EndIf}
@@ -269,6 +311,7 @@ Section "Uninstall"
     MessageBox MB_RETRYCANCEL|MB_ICONINFORMATION "$(UninstCloseObs)" IDRETRY retry
   ${EndIf}
   DeleteRegValue HKCU "${RUN_KEY}" "OBS Conductor"
+  DeleteRegValue HKLM "${RUN_KEY}" "OBS Conductor"
   nsExec::Exec '"$SYSDIR\netsh.exe" advfirewall firewall delete rule name="OBS Conductor"'
   Pop $0
   nsExec::Exec '"$SYSDIR\netsh.exe" advfirewall firewall delete rule name="OBS Conductor - OBS WebSocket"'

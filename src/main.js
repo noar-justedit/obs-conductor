@@ -569,12 +569,22 @@ function main() {
   log.info(`=== OBS Conductor ${require('../package.json').version} starting (Node ${process.versions.node}, ${process.platform}) ===`);
   paths.ensureDefaultConfig();
   if (paths.isPackaged()) obsSetup.loaderPage();   // the dock's page, kept up to date
+  // Windows 2.3.0: "start with Windows" is for every user now (HKLM). The
+  // per-user entry of an older install would start it twice: removed.
+  if (process.platform === 'win32' && paths.isPackaged()) {
+    const { execFile } = require('child_process');
+    const RUN = 'Software\\Microsoft\\Windows\\CurrentVersion\\Run';
+    execFile('reg', ['query', `HKLM\\${RUN}`, '/v', 'OBS Conductor'], { windowsHide: true }, e => {
+      if (!e) execFile('reg', ['delete', `HKCU\\${RUN}`, '/v', 'OBS Conductor', '/f'], { windowsHide: true }, () => {});
+    });
+  }
   const simulate = process.argv.includes('--simulate');
   // the simulated OBS keeps its scene collection files in a temp folder
   if (simulate && !process.env.OBS_CONFIG_DIR) process.env.OBS_CONFIG_DIR = path.join(os.tmpdir(), 'obs-conductor-sim-obs');
   const app = new Companion(simulate);
   const dash = app.store.settings().dashboard || {};
-  const port = parseInt(dash.port, 10) || 8090;
+  let port = parseInt(dash.port, 10) || 8090;
+  if (!(port >= 1024 && port <= 65535)) { log.warn(`Dock port ${dash.port} can't be used: 8090 instead`); port = 8090; }
   const bind = String(dash.bind || '0.0.0.0');
   app.listening = { port, bind };
   startServer(app, port, bind);

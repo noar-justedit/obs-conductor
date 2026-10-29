@@ -21,6 +21,7 @@
  * It is not frame-accurate (no genlock).
  */
 
+const mc = require('./master-client');
 const { ObsClient, EVENTS, switchScene, currentProgramScene } = require('./obs');
 
 const CHECK_EVERY_MS = 2000;
@@ -168,11 +169,8 @@ class MasterMonitor {
     if (autoStart) this._loop();
   }
 
-  async _get(url) {
-    const r = await fetch(url, { signal: AbortSignal.timeout(3000) });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return r.json();
-  }
+  // signed, and the answer checked: only the real master is followed (2.3.0)
+  _get(cfg, target) { return mc.getJson(mc.masterOf(cfg), target, { timeout: 3000 }); }
 
   async _loop() {
     for (;;) {
@@ -185,20 +183,21 @@ class MasterMonitor {
       }
       const base = `http://${cfg.master_host}:${cfg.master_dashboard_port || 8090}`;
       try {
-        const state = await this._get(`${base}/api/state`);
+        const state = await this._get(cfg, '/api/state');
         state.fetched_at = Date.now() / 1000;
         // signed requests to the master use its clock (auth.js)
         if (state.server_time) require('./auth').setClockSkew(state.server_time * 1000 - Date.now());
         const rev = `${state.active_playlist}|${state.playlist_rev}`;
         let playlist = this.data.playlist;
         if (rev !== this.rev || !playlist) {
-          playlist = await this._get(`${base}/api/playlist`);
+          playlist = await this._get(cfg, '/api/playlist');
           this.rev = rev;
         }
         this.data = { reachable: true, error: null, state, playlist };
       } catch (e) {
-        this.data = { ...this.data, reachable: false,
-                      error: `Master companion app unreachable (${base}): ${e.message}` };
+        // a refused answer (old master, wrong password, another machine) says why
+        this.data = { ...this.data, reachable: false, refused: e instanceof mc.MasterError && e.kind !== 'error' ? e.kind : null,
+                      error: e instanceof mc.MasterError && e.kind !== 'error' ? e.message : `Master companion app unreachable (${base}): ${e.message}` };
       }
       await new Promise(r => setTimeout(r, 500));
     }

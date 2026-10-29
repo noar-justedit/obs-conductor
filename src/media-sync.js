@@ -20,6 +20,7 @@
  * version waits next to it and takes its place at the next Sync.
  */
 
+const mc = require('./master-client');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
@@ -69,7 +70,9 @@ const DENY_EXT = new Set(['.exe', '.com', '.bat', '.cmd', '.ps1', '.psm1', '.vbs
   '.msi', '.msp', '.scr', '.pif', '.lnk', '.url', '.dll', '.sys', '.cpl', '.hta', '.reg', '.jar', '.inf', '.appref-ms',
   // macOS / Linux
   '.sh', '.bash', '.zsh', '.command', '.tool', '.app', '.pkg', '.dmg', '.dylib', '.kext', '.plist', '.scpt', '.applescript',
-  '.so', '.deb', '.rpm', '.appimage', '.desktop', '.service', '.py', '.pl', '.rb']);
+  '.so', '.deb', '.rpm', '.appimage', '.desktop', '.service', '.py', '.pl', '.rb',
+  // OBS scripts (review 2.2.2): OBS runs them when a scene collection lists them
+  '.lua', '.luac', '.pyc']);
 const DENY_DIRS = [/^[a-z]:[\\/]windows[\\/]/i, /^[a-z]:[\\/]program files( \(x86\))?[\\/]/i, /^[a-z]:[\\/]programdata[\\/]microsoft[\\/]/i,
   /[\\/]start menu[\\/]/i, /[\\/]startup[\\/]/i, /[\\/]appdata[\\/]roaming[\\/]microsoft[\\/]/i,
   // macOS / Linux: system folders, things started at logon, shell settings
@@ -134,17 +137,19 @@ class MediaSync {
   _get(pathname, query, { range, toFile, onData, timeout = 30000 } = {}) {
     return new Promise((resolve, reject) => {
       const qs = query ? '?' + new URLSearchParams(query).toString() : '';
-      const headers = { [auth.HEADER]: auth.sign(this.m.password, pathname + qs) };   // signs the query too
+      if (!this.m.password) return reject(new mc.MasterError(mc.NO_PASSWORD, { kind: 'nopassword' }));
+      const sig = auth.sign(this.m.password, pathname + qs);
+      const headers = { [auth.HEADER]: sig };   // signs the query too
       if (range) headers.Range = `bytes=${range}-`;
       const req = http.get({ host: this.m.host, port: this.m.port, path: pathname + qs, headers, timeout }, res => {
-        if (res.statusCode === 401) { res.resume(); return reject(new Error('the master refused: wrong password (link the master again)')); }
-        if (res.statusCode >= 400) {
-          let b = ''; res.on('data', c => { b += c; }); res.on('end', () => { let e; try { e = JSON.parse(b).error; } catch (_) {} reject(new Error(e || `master answered HTTP ${res.statusCode}`)); });
-          return;
-        }
-        if (!toFile) {
-          let b = ''; res.setEncoding('utf8'); res.on('data', c => { b += c; });
-          res.on('end', () => { try { resolve(JSON.parse(b)); } catch (e) { reject(e); } });
+        // a JSON answer (list, fingerprint, error) is checked: from the master
+        // only (master-client.js). A file is checked by its fingerprint.
+        if (!toFile || res.statusCode >= 400) {
+          const parts = []; res.on('data', c => parts.push(c));
+          res.on('end', () => {
+            try { resolve(mc.checkAnswer(this.m, sig, res.statusCode, res.headers[auth.RESP_HEADER], Buffer.concat(parts).toString('utf8'))); }
+            catch (e) { reject(e); }
+          });
           return;
         }
         const append = res.statusCode === 206;
@@ -258,7 +263,7 @@ class MediaSync {
         // a file OBS is playing here can't be replaced: next Sync. A folder
         // this PC's user can't write to is not "in use": say so.
         if (e.code === 'EBUSY' || (denied && !e.noWrite && fs.existsSync(f.local))) st.busy.push(f.local);
-        else if (denied) st.errors.push(`${f.local}: no write access here (Settings > Medias location: custom, choose another folder)`);
+        else if (denied) st.errors.push(`${f.local}: no write access here (Settings > Media location: custom, choose another folder)`);
         else st.errors.push(`${f.local}: ${e.message}`);
         this.log.warn(`Media sync: ${f.local}: ${e.message}`);
       }
